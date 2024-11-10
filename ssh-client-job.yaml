@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ssh-client-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: ssh-client-container
+        image: ubuntu:latest
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            apt-get update && \
+            apt-get install -y openssh-client sshpass && \
+            sshpass -p 'root' ssh -o StrictHostKeyChecking=no root@host.minikube.internal -p 2222 'echo "SSH Connection Successful!"'
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+      restartPolicy: Never
+  backoffLimit: 3

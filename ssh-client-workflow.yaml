@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ssh-client-workflow-
+spec:
+  entrypoint: ssh-client
+  templates:
+  - name: ssh-client
+    container:
+      image: ubuntu:latest
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          apt-get update && \
+          apt-get install -y openssh-client sshpass && \
+          sshpass -p 'root' ssh -o StrictHostKeyChecking=no root@host.minikube.internal -p 2222 'srun hostname && echo "SSH Connection Successful!"'
+      resources:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "256Mi"
+          cpu: "500m"
