@@ -1,11 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
-kind: Workflow
+kind: WorkflowTemplate
 metadata:
-  generateName: ssh-client-workflow-
+  name: ssh-client-template
 spec:
   entrypoint: ssh-client
   templates:
   - name: ssh-client
+    inputs:
+      parameters:
+      - name: command
     container:
       image: ubuntu:latest
       command: ["/bin/sh", "-c"]
@@ -13,7 +16,7 @@ spec:
         - |
           apt-get update && \
           apt-get install -y openssh-client sshpass && \
-          sshpass -p 'root' ssh -o StrictHostKeyChecking=no root@host.minikube.internal -p 2222 'sbatch my_script.slurm && echo "SSH Connection Successful!"'
+          sshpass -p 'root' ssh -o StrictHostKeyChecking=no root@host.minikube.internal -p 2222 '{{inputs.parameters.command}} && echo "SSH Connection Successful!"'
       resources:
         requests:
           memory: "128Mi"

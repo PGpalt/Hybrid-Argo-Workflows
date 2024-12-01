@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: workflow-using-template-
+spec:
+  entrypoint: run-ssh-command
+  templates:
+  - name: run-ssh-command
+    steps:
+         templateRef:
+           name: slurm-job-workflow-template   # Name of the WorkflowTemplate
+           template: ssh-client        # Template to call
+         arguments:
+           parameters:
+           - name: command
+             value: "sbatch my_script.slurm"
