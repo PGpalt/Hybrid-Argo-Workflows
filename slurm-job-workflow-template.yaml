@@ -13,13 +13,11 @@ spec:
       - name: minioEndpoint  # e.g., "minio.minio-dev.svc.cluster.local:9000"
       - name: bucket         # e.g., "slurm-script"
     container:
-      image: ubuntu:latest
+      image: my-ssh-client:latest
+      imagePullPolicy: IfNotPresent
       command: ["/bin/sh", "-c"]
       args:
         - |
-          # Install necessary tools
-          apt-get update && \
-          apt-get install -y openssh-client sshpass curl && \
           # Download the file from MinIO locally in the pod
           curl -o /tmp/{{inputs.parameters.scriptName}} http://{{inputs.parameters.minioEndpoint}}/{{inputs.parameters.bucket}}/{{inputs.parameters.scriptName}} && \
           # Transfer the file to the remote SLURM machine via SCP
