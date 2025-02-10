@@ -8,15 +8,24 @@ spec:
   - name: ssh-client
     inputs:
       parameters:
-      - name: command
+      - name: command        # e.g., "sbatch"
+      - name: scriptName     # e.g., "my_script.slurm"
+      - name: minioEndpoint  # e.g., "minio.minio-dev.svc.cluster.local:9000"
+      - name: bucket         # e.g., "slurm-script"
     container:
       image: ubuntu:latest
       command: ["/bin/sh", "-c"]
       args:
         - |
+          # Install necessary tools
           apt-get update && \
-          apt-get install -y openssh-client sshpass && \
-          sshpass -p 'root' ssh -o StrictHostKeyChecking=no root@host.minikube.internal -p 2222 '{{inputs.parameters.command}} && echo "SSH Connection Successful!"'
+          apt-get install -y openssh-client sshpass curl && \
+          # Download the file from MinIO locally in the pod
+          curl -o /tmp/{{inputs.parameters.scriptName}} http://{{inputs.parameters.minioEndpoint}}/{{inputs.parameters.bucket}}/{{inputs.parameters.scriptName}} && \
+          # Transfer the file to the remote SLURM machine via SCP
+          sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 /tmp/{{inputs.parameters.scriptName}} root@host.minikube.internal:/root/{{inputs.parameters.scriptName}} && \
+          # Run the SLURM command on the remote machine, using the transferred file
+          sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "{{inputs.parameters.command}} /root/{{inputs.parameters.scriptName}} && echo 'SSH Connection Successful!'"
       resources:
         requests:
           memory: "128Mi"
