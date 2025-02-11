@@ -12,12 +12,14 @@ spec:
       - name: scriptName     # e.g., "my_script.slurm"
       - name: minioEndpoint  # e.g., "minio.minio-dev.svc.cluster.local:9000"
       - name: bucket         # e.g., "slurm-script"
+      - name: learnRate    
     container:
       image: my-ssh-client:latest
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh", "-c"]
       args:
         - |
+          export LR="{{inputs.parameters.learnRate}}"
           # Download the file from MinIO locally in the pod
           curl -o /tmp/{{inputs.parameters.scriptName}} http://{{inputs.parameters.minioEndpoint}}/{{inputs.parameters.bucket}}/{{inputs.parameters.scriptName}} && \
           # Transfer the file to the remote SLURM machine via SCP
