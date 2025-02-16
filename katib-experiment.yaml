@@ -1,4 +1,12 @@
-apiVersion: "kubeflow.org/v1beta1"
+---
+# This example shows how you can use Argo Workflows in Katib, transfer parameters from one Step to another and run HP job.
+# It uses a simple random algorithm and tunes only learning rate.
+# Workflow contains 2 Steps, first is data-preprocessing second is model-training.
+# First Step shows how you can prepare your training data (here: simply divide number of training examples) before running HP job.
+# Number of training examples is transferred to the second Step.
+# Second Step is the actual training which metrics collector sidecar is injected.
+# Note that for this example Argo Container Runtime Executor must be "emissary".
+apiVersion: kubeflow.org/v1beta1
 kind: Experiment
 metadata:
   namespace: argo
@@ -6,7 +14,7 @@ metadata:
 spec:
   objective:
     type: minimize
-    goal: 0.1
+    goal: 0.001
     objectiveMetricName: loss
   algorithm:
     algorithmName: random
@@ -18,7 +26,7 @@ spec:
       parameterType: double
       feasibleSpace:
         min: "0.01"
-        max: "0.1"
+        max: "0.03"
   trialTemplate:
     retain: true
     primaryPodLabels:
@@ -30,27 +38,53 @@ spec:
       - name: learningRate
         description: Learning rate for the training model
         reference: lr
+    metricsCollectorSpec:
+      collector:
+        kind: StdOut
+        source: {}  # No extra parameters needed for StdOut
     trialSpec:
       apiVersion: argoproj.io/v1alpha1
       kind: Workflow
       spec:
-        entrypoint: run-ssh-command
+        serviceAccountName: argo
+        entrypoint: hp-workflow
         templates:
-        - name: run-ssh-command
-          steps:
+          - name: hp-workflow
+            steps:
+              - - name: data-preprocessing
+                  template: gen-epochs
+              - - name: model-training
+                  template: model-training
+                  arguments:
+                    parameters:
+                      - name: epochs
+                        value: "{{steps.data-preprocessing.outputs.result}}"
+
+          - name: gen-epochs
+            script:
+              image: python:alpine3.6
+              command:
+                - python
+              source: |
+                import random
+                print(60000//random.randint(20000, 30000))
+
+          - name: model-training
+            inputs:
+              parameters:
+                - name: epochs
+            steps:
             - - name: execute-ssh
                 templateRef:
                   name: ssh-client-template
-                  template: ssh-client
+                  template: ssh-client                 
                 arguments:
                   parameters:
                     - name: command
-                      value: "sbatch"
+                      value: "srun python3"
                     - name: scriptName
-                      value: "katib-train.slurm"
+                      value: "mnist.py --lr=${trialParameters.learningRate} --epochs={{inputs.parameters.epochs}} --batch-size=16"
                     - name: minioEndpoint
                       value: "minio.minio-dev.svc.cluster.local:9000"
                     - name: bucket
                       value: "slurm-script"
-                    - name: learnRate
-                      value: ${trialParameters.learningRate}
