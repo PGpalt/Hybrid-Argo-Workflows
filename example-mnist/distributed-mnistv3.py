@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright 2022 The Kubeflow Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +20,6 @@ import os
 import socket
 import subprocess
 import time
-import re
 
 import hypertune
 import torch
@@ -46,33 +44,27 @@ def find_free_port():
     s.close()
     return port
 
-def set_master_addr():
-    # If MASTER_ADDR is already set, do nothing.
-    if "MASTER_ADDR" in os.environ:
-        print("MASTER_ADDR already set to:", os.environ["MASTER_ADDR"])
-        return
-
-    # Retrieve SLURM_NODELIST from environment.
-    slurm_nodelist = os.environ.get("SLURM_NODELIST")
-    if not slurm_nodelist:
-        raise RuntimeError("MASTER_ADDR not set and SLURM_NODELIST not found.")
-
-    try:
-        # Get the first node from SLURM_NODELIST (it may be a comma-separated list).
-        first_node = slurm_nodelist.split(",")[0]
-        # Query detailed information for the node.
-        node_info = subprocess.check_output(["scontrol", "show", "node", "-o", first_node]).decode()
-        print("Node info:", node_info)
-        # Extract the NodeAddr field.
-        m = re.search(r"NodeAddr=([\w\.]+)", node_info)
-        if m:
-            master_ip = m.group(1)
+def setup_master():
+    # Set MASTER_ADDR if not already set.
+    if "MASTER_ADDR" not in os.environ:
+        slurm_nodelist = os.environ.get("SLURM_NODELIST")
+        if slurm_nodelist:
+            try:
+                # Get the first hostname from the SLURM_NODELIST.
+                master = subprocess.check_output(
+                    ["scontrol", "show", "hostnames", slurm_nodelist]
+                ).decode().split()[0]
+                # According to your slurm.conf, if the master is 'c1', use 127.0.0.1.
+                if master.strip() == "c1":
+                    master_ip = "127.0.0.1"
+                else:
+                    master_ip = socket.gethostbyname(master)
+                os.environ["MASTER_ADDR"] = master_ip
+                print("MASTER_ADDR set to:", master_ip)
+            except Exception as e:
+                raise RuntimeError("Could not determine MASTER_ADDR from SLURM_NODELIST") from e
         else:
-            raise RuntimeError("Could not extract NodeAddr from node info.")
-        os.environ["MASTER_ADDR"] = master_ip
-        print("MASTER_ADDR set to:", master_ip)
-    except Exception as e:
-        raise RuntimeError("Could not determine MASTER_ADDR using NodeAddr") from e
+            raise RuntimeError("MASTER_ADDR not set and SLURM_NODELIST not found.")
 
 def setup_master_port():
     """
@@ -116,7 +108,7 @@ WORLD_SIZE = int(os.environ.get("WORLD_SIZE", 1))
 RANK = int(os.environ.get("RANK", 0))
 
 # Set up MASTER_ADDR and MASTER_PORT.
-set_master_addr()
+setup_master()
 port_file = setup_master_port()
 
 
@@ -339,7 +331,6 @@ def main():
     test_dataset = datasets.FashionMNIST(
         "./data",
         train=False,
-        download=False,
         transform=transforms.Compose([transforms.ToTensor()]),
     )
 

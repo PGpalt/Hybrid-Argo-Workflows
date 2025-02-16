@@ -358,9 +358,5 @@ def main():
         torch.save(model.state_dict(), "mnist_cnn.pt")
 
 
-def is_distributed():
-    return dist.is_available() and dist.is_initialized()
-
-
 if __name__ == "__main__":
     main()
