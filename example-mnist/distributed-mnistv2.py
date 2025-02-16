@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright 2022 The Kubeflow Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -52,24 +51,15 @@ class Net(nn.Module):
 def train(args, model, device, train_loader, optimizer, epoch, train_sampler=None):
     model.train()
     if train_sampler is not None:
+        # Shuffle data differently at each epoch
         train_sampler.set_epoch(epoch)
-    total_loss = 0.0
-    total_samples = 0
-
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
-        # F.nll_loss uses reduction="mean" by default.
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
-
-        # Multiply by batch size to get the sum loss for this batch.
-        batch_size = data.size(0)
-        total_loss += loss.item() * batch_size
-        total_samples += batch_size
-
         if batch_idx % args.log_interval == 0:
             msg = "Train Epoch: {} [{}/{} ({:.0f}%)]\tloss={:.4f}".format(
                 epoch,
@@ -79,70 +69,56 @@ def train(args, model, device, train_loader, optimizer, epoch, train_sampler=Non
                 loss.item(),
             )
             logging.info(msg)
+            niter = epoch * len(train_loader) + batch_idx  # noqa: F841
 
-    # Compute the average training loss for this epoch.
-    local_avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
-
-    # If distributed, aggregate total loss and total samples from all processes.
-    if is_distributed():
-        loss_tensor = torch.tensor(total_loss, device=device)
-        samples_tensor = torch.tensor(total_samples, device=device)
-        dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
-        dist.all_reduce(samples_tensor, op=dist.ReduceOp.SUM)
-        aggregated_loss = loss_tensor.item() / samples_tensor.item()
-    else:
-        aggregated_loss = local_avg_loss
-
-    # Log aggregated training loss only from the master process.
-    rank = 0
-    if is_distributed():
-        rank = dist.get_rank()
-    if rank == 0:
-        # Logging in a similar JSON-like metric format.
-        logging.info("{{metricName: train_loss, metricValue: {:.4f}}}\n".format(aggregated_loss))
-
-
-def test(args, model, device, test_loader, epoch, hpt, test_sampler=None):
+def test(args, model, device, test_loader, epoch, hpt):
     model.eval()
     total_loss = 0.0
     total_correct = 0
     total_samples = 0
 
+    # Evaluate the model on the test set.
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            # Use sum reduction to aggregate loss over the batch.
+            # Sum up the loss over the batch (using 'sum' reduction)
             batch_loss = F.nll_loss(output, target, reduction="sum").item()
             total_loss += batch_loss
+            # Count correct predictions in this batch
             pred = output.max(1, keepdim=True)[1]
             total_correct += pred.eq(target.view_as(pred)).sum().item()
             total_samples += data.size(0)
 
+    # If in distributed mode, aggregate the metrics from all processes.
     if is_distributed():
         loss_tensor = torch.tensor(total_loss, device=device)
         correct_tensor = torch.tensor(total_correct, device=device)
         samples_tensor = torch.tensor(total_samples, device=device)
+
+        # Reduce (sum) these values across all processes.
         dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
         dist.all_reduce(correct_tensor, op=dist.ReduceOp.SUM)
         dist.all_reduce(samples_tensor, op=dist.ReduceOp.SUM)
+
         aggregated_loss = loss_tensor.item() / samples_tensor.item()
         aggregated_accuracy = correct_tensor.item() / samples_tensor.item()
     else:
         aggregated_loss = total_loss / total_samples
         aggregated_accuracy = total_correct / total_samples
 
+    # Only log from the master process (rank 0).
     rank = 0
     if is_distributed():
         rank = dist.get_rank()
     if rank == 0:
-        # Preserve the original metric logging format.
         logging.info(
             "{{metricName: accuracy, metricValue: {:.4f}}};"
             "{{metricName: loss, metricValue: {:.4f}}}\n".format(
                 aggregated_accuracy, aggregated_loss
             )
         )
+
         if args.logger == "hypertune":
             hpt.report_hyperparameter_tuning_metric(
                 hyperparameter_metric_tag="loss",
@@ -245,7 +221,7 @@ def main():
         )
     args = parser.parse_args()
 
-    # Set up logging: if log_path is empty or using hypertune, print to StdOut.
+    # Set up logging: if log_path is empty, print to StdOut.
     if args.log_path == "" or args.logger == "hypertune":
         logging.basicConfig(
             format="%(asctime)s %(levelname)-8s %(message)s",
@@ -263,13 +239,15 @@ def main():
     if args.logger == "hypertune" and args.log_path != "":
         os.environ["CLOUD_ML_HP_METRIC_FILE"] = args.log_path
 
-    # For JSON logging with hypertune.
+    # For JSON logging
     hpt = hypertune.HyperTune()
 
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     if use_cuda:
         print("Using CUDA")
+
     torch.manual_seed(args.seed)
+
     device = torch.device("cuda" if use_cuda else "cpu")
 
     if should_distribute():
@@ -279,45 +257,25 @@ def main():
 
     kwargs = {"num_workers": 1, "pin_memory": True} if use_cuda else {}
 
-    # Only let rank 0 download the dataset and then synchronize with others.
-    rank = 0
-    if is_distributed():
-        rank = dist.get_rank()
+    # Load the FashionMNIST datasets.
+    train_dataset = datasets.FashionMNIST(
+        "./data",
+        train=True,
+        download=True,
+        transform=transforms.Compose([transforms.ToTensor()]),
+    )
 
-    if rank == 0:
-        train_dataset = datasets.FashionMNIST(
-            "./data",
-            train=True,
-            download=True,
-            transform=transforms.Compose([transforms.ToTensor()]),
-        )
-        test_dataset = datasets.FashionMNIST(
-            "./data",
-            train=False,
-            download=True,
-            transform=transforms.Compose([transforms.ToTensor()]),
-        )
-        if is_distributed():
-            dist.barrier()  # let other processes wait until download is complete
-    else:
-        if is_distributed():
-            dist.barrier()  # wait for rank 0 to finish downloading
-        train_dataset = datasets.FashionMNIST(
-            "./data",
-            train=True,
-            download=False,
-            transform=transforms.Compose([transforms.ToTensor()]),
-        )
-        test_dataset = datasets.FashionMNIST(
-            "./data",
-            train=False,
-            download=False,
-            transform=transforms.Compose([transforms.ToTensor()]),
-        )
+    test_dataset = datasets.FashionMNIST(
+        "./data",
+        train=False,
+        transform=transforms.Compose([transforms.ToTensor()]),
+    )
 
-    # Set up DistributedSampler if running in distributed mode.
+    # Set up DistributedSampler if in distributed mode.
     if is_distributed():
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        # For testing, you might also use a DistributedSampler. Note that if you do,
+        # each process will only see a portion of the test dataset.
         test_sampler = torch.utils.data.distributed.DistributedSampler(test_dataset, shuffle=False)
     else:
         train_sampler = None
@@ -330,6 +288,7 @@ def main():
         shuffle=(train_sampler is None),
         **kwargs,
     )
+
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
         batch_size=args.test_batch_size,
@@ -352,14 +311,10 @@ def main():
 
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch, train_sampler)
-        test(args, model, device, test_loader, epoch, hpt, test_sampler)
+        test(args, model, device, test_loader, epoch, hpt)
 
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
-
-
-def is_distributed():
-    return dist.is_available() and dist.is_initialized()
 
 
 if __name__ == "__main__":
