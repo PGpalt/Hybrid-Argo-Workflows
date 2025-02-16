@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: katib-ui
+  namespace: kubeflow
+spec:
+  type: NodePort
+  selector:
+    katib.kubeflow.org/component: ui
+  ports:
+    - name: http
+      port: 80       # Service port
+      targetPort: 8080  # Container port from the pod
+      nodePort: 30080   # Ensure this is within 30000-32767

@@ -19,7 +19,7 @@ spec:
   algorithm:
     algorithmName: random
   parallelTrialCount: 2
-  maxTrialCount: 5
+  maxTrialCount: 4
   maxFailedTrialCount: 1
   parameters:
     - name: lr
@@ -38,14 +38,10 @@ spec:
       - name: learningRate
         description: Learning rate for the training model
         reference: lr
-    metricsCollectorSpec:
-      collector:
-        kind: StdOut
-        source: {}  # No extra parameters needed for StdOut
     trialSpec:
       apiVersion: argoproj.io/v1alpha1
       kind: Workflow
-      spec:
+      spec:        
         serviceAccountName: argo
         entrypoint: hp-workflow
         templates:
@@ -67,7 +63,7 @@ spec:
                 - python
               source: |
                 import random
-                print(60000//random.randint(20000, 30000))
+                print(60000//random.randint(10000, 30000))
 
           - name: model-training
             inputs:
@@ -81,9 +77,9 @@ spec:
                 arguments:
                   parameters:
                     - name: command
-                      value: "srun python3"
+                      value: "srun python3 mnist.py --lr=${trialParameters.learningRate} --epochs={{inputs.parameters.epochs}} --batch-size=16"
                     - name: scriptName
-                      value: "mnist.py --lr=${trialParameters.learningRate} --epochs={{inputs.parameters.epochs}} --batch-size=16"
+                      value: "mnist.py"
                     - name: minioEndpoint
                       value: "minio.minio-dev.svc.cluster.local:9000"
                     - name: bucket
