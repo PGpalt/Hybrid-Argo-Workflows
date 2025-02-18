@@ -14,7 +14,7 @@ metadata:
 spec:
   objective:
     type: minimize
-    goal: 0.001
+    goal: 0.05
     objectiveMetricName: loss
   algorithm:
     algorithmName: random
@@ -77,9 +77,9 @@ spec:
                 arguments:
                   parameters:
                     - name: command
-                      value: "srun --ntasks=2 python3 distributed-mnistv2.py --lr=${trialParameters.learningRate} --epochs={{inputs.parameters.epochs}} --batch-size=16"
+                      value: "srun --ntasks=2 python3 distributed-mnist.py --lr=${trialParameters.learningRate} --epochs={{inputs.parameters.epochs}} --batch-size=16"
                     - name: scriptName
-                      value: "distributed-mnistv2.py"
+                      value: "distributed-mnist.py"
                     - name: minioEndpoint
                       value: "minio.minio-dev.svc.cluster.local:9000"
                     - name: bucket

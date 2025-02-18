@@ -18,6 +18,10 @@ from __future__ import print_function
 import argparse
 import logging
 import os
+import socket
+import subprocess
+import time
+import re
 
 import hypertune
 import torch
@@ -26,8 +30,94 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
+import torchvision.datasets.utils as utils
+
+# Set WORLD_SIZE and RANK from SLURM if available.
+if "SLURM_NTASKS" in os.environ:
+    os.environ["WORLD_SIZE"] = os.environ["SLURM_NTASKS"]
+if "SLURM_PROCID" in os.environ:
+    os.environ["RANK"] = os.environ["SLURM_PROCID"]
+
+def find_free_port():
+    """Finds a free port on localhost."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind((os.environ["MASTER_ADDR"], 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+def set_master_addr():
+    # If MASTER_ADDR is already set, do nothing.
+    if "MASTER_ADDR" in os.environ:
+        print("MASTER_ADDR already set to:", os.environ["MASTER_ADDR"])
+        return
+
+    # Retrieve SLURM_NODELIST from environment.
+    slurm_nodelist = os.environ.get("SLURM_NODELIST")
+    if not slurm_nodelist:
+        raise RuntimeError("MASTER_ADDR not set and SLURM_NODELIST not found.")
+
+    try:
+        # Get the first node from SLURM_NODELIST (it may be a comma-separated list).
+        first_node = slurm_nodelist.split(",")[0]
+        # Query detailed information for the node.
+        node_info = subprocess.check_output(["scontrol", "show", "node", "-o", first_node]).decode()
+        print("Node info:", node_info)
+        # Extract the NodeAddr field.
+        m = re.search(r"NodeAddr=([\w\.]+)", node_info)
+        if m:
+            master_ip = m.group(1)
+        else:
+            raise RuntimeError("Could not extract NodeAddr from node info.")
+        os.environ["MASTER_ADDR"] = master_ip
+        print("MASTER_ADDR set to:", master_ip)
+    except Exception as e:
+        raise RuntimeError("Could not determine MASTER_ADDR using NodeAddr") from e
+
+def setup_master_port():
+    """
+    If rank 0, find a free port and write it to a temporary file.
+    If not rank 0, wait until the file is available, then read the port.
+    """
+    # Create a unique filename based on SLURM_JOB_ID if available, otherwise use the PID.
+    job_id = os.environ.get("SLURM_JOB_ID", str(os.getpid()))
+    port_file = f"/tmp/master_port_{job_id}.txt"
+    
+    if RANK == 0:
+        # Master finds a free port.
+        free_port = find_free_port()
+        os.environ["MASTER_PORT"] = str(free_port)
+        print("MASTER_PORT (master) dynamically set to:", free_port)
+        # Write the free port to the file.
+        with open(port_file, "w") as f:
+            f.write(str(free_port))
+    else:
+        # Worker: Wait until the master writes the free port.
+        timeout = 60  # seconds
+        start_time = time.time()
+        while not os.path.exists(port_file):
+            if time.time() - start_time > timeout:
+                raise RuntimeError("Timeout waiting for master port file.")
+            time.sleep(1)
+        with open(port_file, "r") as f:
+            free_port = f.read().strip()
+        os.environ["MASTER_PORT"] = free_port
+        print("MASTER_PORT (worker) read as:", free_port)
+    return port_file
+
+# Set WORLD_SIZE and RANK from SLURM environment variables if available.
+if "SLURM_NTASKS" in os.environ:
+    os.environ["WORLD_SIZE"] = os.environ["SLURM_NTASKS"]
+if "SLURM_PROCID" in os.environ:
+    os.environ["RANK"] = os.environ["SLURM_PROCID"]
 
 WORLD_SIZE = int(os.environ.get("WORLD_SIZE", 1))
+RANK = int(os.environ.get("RANK", 0))
+
+# Set up MASTER_ADDR and MASTER_PORT.
+set_master_addr()
+port_file = setup_master_port()
+
 
 
 class Net(nn.Module):
@@ -94,10 +184,7 @@ def train(args, model, device, train_loader, optimizer, epoch, train_sampler=Non
         aggregated_loss = local_avg_loss
 
     # Log aggregated training loss only from the master process.
-    rank = 0
-    if is_distributed():
-        rank = dist.get_rank()
-    if rank == 0:
+    if RANK == 0:
         # Logging in a similar JSON-like metric format.
         logging.info("{{metricName: train_loss, metricValue: {:.4f}}}\n".format(aggregated_loss))
 
@@ -132,10 +219,7 @@ def test(args, model, device, test_loader, epoch, hpt, test_sampler=None):
         aggregated_loss = total_loss / total_samples
         aggregated_accuracy = total_correct / total_samples
 
-    rank = 0
-    if is_distributed():
-        rank = dist.get_rank()
-    if rank == 0:
+    if RANK == 0:
         # Preserve the original metric logging format.
         logging.info(
             "{{metricName: accuracy, metricValue: {:.4f}}};"
@@ -245,7 +329,7 @@ def main():
         )
     args = parser.parse_args()
 
-    # Set up logging: if log_path is empty or using hypertune, print to StdOut.
+    # Set up logging: if log_path is empty, print to StdOut.
     if args.log_path == "" or args.logger == "hypertune":
         logging.basicConfig(
             format="%(asctime)s %(levelname)-8s %(message)s",
@@ -263,10 +347,11 @@ def main():
     if args.logger == "hypertune" and args.log_path != "":
         os.environ["CLOUD_ML_HP_METRIC_FILE"] = args.log_path
 
-    # For JSON logging with hypertune.
+    # For JSON logging
     hpt = hypertune.HyperTune()
 
     use_cuda = not args.no_cuda and torch.cuda.is_available()
+    print("CUDA AVAILABILITY: ", torch.cuda.is_available())
     if use_cuda:
         print("Using CUDA")
     torch.manual_seed(args.seed)
@@ -274,17 +359,13 @@ def main():
 
     if should_distribute():
         print("Using distributed PyTorch with {} backend".format(args.backend))
-        dist.init_process_group(backend=args.backend)
-        logging.info("Distributed Enviroment")
+        if not dist.is_initialized():
+            print("Initializing process group...")
+            dist.init_process_group(backend=args.backend)
 
     kwargs = {"num_workers": 1, "pin_memory": True} if use_cuda else {}
 
-    # Only let rank 0 download the dataset and then synchronize with others.
-    rank = 0
-    if is_distributed():
-        rank = dist.get_rank()
-
-    if rank == 0:
+    if RANK == 0:
         train_dataset = datasets.FashionMNIST(
             "./data",
             train=True,
@@ -294,7 +375,6 @@ def main():
         test_dataset = datasets.FashionMNIST(
             "./data",
             train=False,
-            download=True,
             transform=transforms.Compose([transforms.ToTensor()]),
         )
         if is_distributed():
@@ -315,9 +395,12 @@ def main():
             transform=transforms.Compose([transforms.ToTensor()]),
         )
 
-    # Set up DistributedSampler if running in distributed mode.
+
+    # Set up DistributedSampler if in distributed mode.
     if is_distributed():
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        # For testing, you might also use a DistributedSampler. Note that if you do,
+        # each process will only see a portion of the test dataset.
         test_sampler = torch.utils.data.distributed.DistributedSampler(test_dataset, shuffle=False)
     else:
         train_sampler = None
@@ -330,6 +413,7 @@ def main():
         shuffle=(train_sampler is None),
         **kwargs,
     )
+
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
         batch_size=args.test_batch_size,
@@ -352,7 +436,7 @@ def main():
 
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch, train_sampler)
-        test(args, model, device, test_loader, epoch, hpt, test_sampler)
+        test(args, model, device, test_loader, epoch, hpt)
 
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
