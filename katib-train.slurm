@@ -8,4 +8,4 @@
 
 # Launch distributed training via srun.
 # SLURM will set environment variables (like RANK, WORLD_SIZE) for distributed jobs.
-srun python3 mnist_train.py --lr ${LR} --batch_size 32 --epochs ${epochs}
+srun python3 distributed-mnist.py --lr=${LR} --batch-size=32 --epochs=${epochs}

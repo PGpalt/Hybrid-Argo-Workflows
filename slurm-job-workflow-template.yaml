@@ -1,11 +1,11 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: ssh-client-template
+  name: slurm-template
 spec:
-  entrypoint: ssh-client
+  entrypoint: slurm-submit-job
   templates:
-  - name: ssh-client
+  - name: slurm-submit-job
     metadata:
       labels:
         katib.kubeflow.org/model-training: "true"
@@ -15,6 +15,10 @@ spec:
       - name: scriptName     # e.g., "my_script.slurm"
       - name: minioEndpoint  # e.g., "minio.minio-dev.svc.cluster.local:9000"
       - name: bucket         # e.g., "slurm-script"
+      - name: fileName
+        default: "NotSet"
+      - name: filePath
+        default: "NotSet"
     script:
       env:
       - name: POD_NAME
@@ -33,15 +37,58 @@ spec:
         
         # Create a directory for the SLURM job on the remote host using the suffix
         sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "mkdir -p slurm-job-${SUFFIX}"
+
+        # Check if a fileName was provided
+        if [ "{{inputs.parameters.fileName}}" != "NotSet" ] && [ "{{inputs.parameters.filePath}}" != "NotSet" ]; then
+
+          # Create the directory on the SLURM cluster if it doesn't exist
+          sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "cd slurm-job-${SUFFIX} && mkdir -p {{inputs.parameters.filePath}}"
+
+          # Download the file from MinIO locally in the pod
+          curl -o /tmp/{{inputs.parameters.fileName}} http://{{inputs.parameters.minioEndpoint}}/{{inputs.parameters.bucket}}/{{inputs.parameters.fileName}}
+          
+          # Transfer the file to the remote SLURM machine via SCP
+          sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 /tmp/{{inputs.parameters.fileName}} root@host.minikube.internal:slurm-job-${SUFFIX}/{{inputs.parameters.filePath}}/{{inputs.parameters.fileName}}
+        fi
         
-        # Download the file from MinIO locally in the pod
+        # Download the script from MinIO locally in the pod
         curl -o /tmp/{{inputs.parameters.scriptName}} http://{{inputs.parameters.minioEndpoint}}/{{inputs.parameters.bucket}}/{{inputs.parameters.scriptName}}
         
-        # Transfer the file to the remote SLURM machine via SCP
-        sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 /tmp/{{inputs.parameters.scriptName}} root@host.minikube.internal:/root/slurm-job-${SUFFIX}/{{inputs.parameters.scriptName}}
+        # Transfer the script to the remote SLURM machine via SCP
+        sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 /tmp/{{inputs.parameters.scriptName}} root@host.minikube.internal:slurm-job-${SUFFIX}/{{inputs.parameters.scriptName}}
         
         # Run the SLURM command on the remote machine, using the transferred file
         sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "cd slurm-job-${SUFFIX} && {{inputs.parameters.command}}"
+      resources:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "256Mi"
+          cpu: "500m"
+
+  - name: slurm-file-transfer
+    inputs:
+      parameters:
+      - name: fileName
+      - name: filePath
+      - name: minioEndpoint
+      - name: bucket
+    script:
+      image: my-ssh-client:latest
+      imagePullPolicy: IfNotPresent
+      command: [bash]
+      source: |
+        #!/bin/bash
+        
+        # Create the directory if it doesnt exist on the SLURM cluster
+        sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "mkdir -p {{inputs.parameters.filePath}}"
+
+        # Download the file from MinIO locally in the pod
+        curl -o /tmp/{{inputs.parameters.fileName}} http://{{inputs.parameters.minioEndpoint}}/{{inputs.parameters.bucket}}/{{inputs.parameters.fileName}}
+        
+        # Transfer the file to the remote SLURM machine via SCP
+        sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 /tmp/{{inputs.parameters.fileName}} root@host.minikube.internal:{{inputs.parameters.filePath}}/{{inputs.parameters.fileName}}
       resources:
         requests:
           memory: "128Mi"
