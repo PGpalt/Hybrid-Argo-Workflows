@@ -28,7 +28,7 @@ spec:
       kind: File
   algorithm:
     algorithmName: random
-  parallelTrialCount: 2
+  parallelTrialCount: 1
   maxTrialCount: 5
   maxFailedTrialCount: 1
   parameters:

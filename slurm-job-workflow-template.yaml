@@ -103,14 +103,15 @@ spec:
           job_id=$(echo ${output} | awk '{print $4}')
           echo "Job submitted with ID: ${job_id}"
 
-          # Poll the job status until it is no longer in squeue
-          while sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "squeue -j ${job_id}" | grep -q "${job_id}"; do
-              echo "Job ${job_id} is still running. Waiting..."
-              sleep 5  # Wait for 5 seconds before checking again.
-          done
+          if [ "$(echo ${output} | awk '{print $4}')" != "sbatch" ]; then
+            # Poll the job status until it is no longer in squeue
+            while sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "squeue -j ${job_id}" | grep -q "${job_id}"; do
+                echo "Job ${job_id} is still running. Waiting..."
+                sleep 5  # Wait for 5 seconds before checking again.
+            done        
+            echo "Job ${job_id} has completed."
+          fi
 
-          echo "Job ${job_id} has completed."
-          
           # Trasnfer the script output from SLURM back to the container
           sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 root@host.minikube.internal:slurm-job-${SUFFIX}/mnist.log /katib/mnist.log       
         resources:
