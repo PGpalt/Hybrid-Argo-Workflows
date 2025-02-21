@@ -16,6 +16,16 @@ spec:
     type: minimize
     goal: 0.05
     objectiveMetricName: loss
+  metricsCollectorSpec:
+    source:
+      filter:
+        metricsFormat:
+          - "{metricName: ([\\w|-]+), metricValue: ((-?\\d+)(\\.\\d+)?)}"
+      fileSystemPath:
+        path: "/katib/mnist.log"
+        kind: File
+    collector:
+      kind: File
   algorithm:
     algorithmName: random
   parallelTrialCount: 2
@@ -77,15 +87,15 @@ spec:
                 arguments:
                   parameters:
                     - name: command
-                      # value: "export LR=${trialParameters.learningRate} && export epochs={{inputs.parameters.epochs}} && sbatch katib-train.slurm"
-                      value: "srun --ntasks=2 python3 distributed-mnist.py --lr=${trialParameters.learningRate} --epochs={{inputs.parameters.epochs}} --batch-size=16"
+                      value: "export LR=${trialParameters.learningRate} && export epochs={{inputs.parameters.epochs}} && sbatch katib-train.slurm"
+                      # value: "srun --ntasks=2 python3 distributed-mnist.py --lr=${trialParameters.learningRate} --epochs={{inputs.parameters.epochs}} --batch-size=16 --log-path=mnist.log"
                     - name: scriptName
                       value: "distributed-mnist.py"
                     - name: minioEndpoint
                       value: "minio.minio-dev.svc.cluster.local:9000"
                     - name: bucket
                       value: "slurm-script"
-                    # - name: fileName
-                    #   value: "katib-train.slurm"
-                    # - name: filePath
-                    #   value: ""
+                    - name: fileName
+                      value: "katib-train.slurm"
+                    - name: filePath
+                      value: ""

@@ -32,12 +32,6 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 import torchvision.datasets.utils as utils
 
-# Set WORLD_SIZE and RANK from SLURM if available.
-if "SLURM_NTASKS" in os.environ:
-    os.environ["WORLD_SIZE"] = os.environ["SLURM_NTASKS"]
-if "SLURM_PROCID" in os.environ:
-    os.environ["RANK"] = os.environ["SLURM_PROCID"]
-
 def find_free_port():
     """Finds a free port on localhost."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -169,24 +163,7 @@ def train(args, model, device, train_loader, optimizer, epoch, train_sampler=Non
                 loss.item(),
             )
             logging.info(msg)
-
-    # Compute the average training loss for this epoch.
-    local_avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
-
-    # If distributed, aggregate total loss and total samples from all processes.
-    if is_distributed():
-        loss_tensor = torch.tensor(total_loss, device=device)
-        samples_tensor = torch.tensor(total_samples, device=device)
-        dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
-        dist.all_reduce(samples_tensor, op=dist.ReduceOp.SUM)
-        aggregated_loss = loss_tensor.item() / samples_tensor.item()
-    else:
-        aggregated_loss = local_avg_loss
-
-    # Log aggregated training loss only from the master process.
-    if RANK == 0:
-        # Logging in a similar JSON-like metric format.
-        logging.info("{{metricName: train_loss, metricValue: {:.4f}}}\n".format(aggregated_loss))
+            logging.info("{{metricName: loss, metricValue: {:.4f}}}".format(loss.item()))
 
 
 def test(args, model, device, test_loader, epoch, hpt, test_sampler=None):
@@ -219,25 +196,24 @@ def test(args, model, device, test_loader, epoch, hpt, test_sampler=None):
         aggregated_loss = total_loss / total_samples
         aggregated_accuracy = total_correct / total_samples
 
-    if RANK == 0:
-        # Preserve the original metric logging format.
-        logging.info(
-            "{{metricName: accuracy, metricValue: {:.4f}}};"
-            "{{metricName: loss, metricValue: {:.4f}}}\n".format(
-                aggregated_accuracy, aggregated_loss
-            )
-        )
-        if args.logger == "hypertune":
-            hpt.report_hyperparameter_tuning_metric(
-                hyperparameter_metric_tag="loss",
-                metric_value=aggregated_loss,
-                global_step=epoch,
-            )
-            hpt.report_hyperparameter_tuning_metric(
-                hyperparameter_metric_tag="accuracy",
-                metric_value=aggregated_accuracy,
-                global_step=epoch,
-            )
+    # if RANK == 0:
+    #     # Preserve the original metric logging format.
+    #     logging.info(
+    #         "{{metricName: loss, metricValue: {:.4f}}}\n".format(
+    #             aggregated_loss
+    #         )
+    #     )
+    #     if args.logger == "hypertune":
+    #         hpt.report_hyperparameter_tuning_metric(
+    #             hyperparameter_metric_tag="loss",
+    #             metric_value=aggregated_loss,
+    #             global_step=epoch,
+    #         )
+    #         hpt.report_hyperparameter_tuning_metric(
+    #             hyperparameter_metric_tag="accuracy",
+    #             metric_value=aggregated_accuracy,
+    #             global_step=epoch,
+    #         )
 
 
 def should_distribute():
