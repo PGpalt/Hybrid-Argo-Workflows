@@ -163,7 +163,7 @@ def train(args, model, device, train_loader, optimizer, epoch, train_sampler=Non
                 loss.item(),
             )
             logging.info(msg)
-            logging.info("{{metricName: loss, metricValue: {:.4f}}}".format(loss.item()))
+            # logging.info("{{metricName: loss, metricValue: {:.4f}}}".format(loss.item()))
 
 
 def test(args, model, device, test_loader, epoch, hpt, test_sampler=None):
@@ -196,24 +196,24 @@ def test(args, model, device, test_loader, epoch, hpt, test_sampler=None):
         aggregated_loss = total_loss / total_samples
         aggregated_accuracy = total_correct / total_samples
 
-    # if RANK == 0:
-    #     # Preserve the original metric logging format.
-    #     logging.info(
-    #         "{{metricName: loss, metricValue: {:.4f}}}\n".format(
-    #             aggregated_loss
-    #         )
-    #     )
-    #     if args.logger == "hypertune":
-    #         hpt.report_hyperparameter_tuning_metric(
-    #             hyperparameter_metric_tag="loss",
-    #             metric_value=aggregated_loss,
-    #             global_step=epoch,
-    #         )
-    #         hpt.report_hyperparameter_tuning_metric(
-    #             hyperparameter_metric_tag="accuracy",
-    #             metric_value=aggregated_accuracy,
-    #             global_step=epoch,
-    #         )
+    if RANK == 0:
+        # Preserve the original metric logging format.
+        logging.info(
+            "{{metricName: loss, metricValue: {:.4f}}}\n".format(
+                aggregated_loss
+            )
+        )
+        if args.logger == "hypertune":
+            hpt.report_hyperparameter_tuning_metric(
+                hyperparameter_metric_tag="loss",
+                metric_value=aggregated_loss,
+                global_step=epoch,
+            )
+            hpt.report_hyperparameter_tuning_metric(
+                hyperparameter_metric_tag="accuracy",
+                metric_value=aggregated_accuracy,
+                global_step=epoch,
+            )
 
 
 def should_distribute():
@@ -271,7 +271,7 @@ def main():
     parser.add_argument(
         "--log-interval",
         type=int,
-        default=10,
+        default=100,
         metavar="N",
         help="how many batches to wait before logging training status",
     )
