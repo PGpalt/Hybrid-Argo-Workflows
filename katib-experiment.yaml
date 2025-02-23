@@ -92,9 +92,9 @@ spec:
                     - name: scriptName
                       value: "distributed-mnist.py"
                     - name: minioEndpoint
-                      value: "minio.minio-dev.svc.cluster.local:9000"
+                      value: "minio.argo.svc.cluster.local:9000"
                     - name: bucket
-                      value: "slurm-script"
+                      value: "my-bucket"
                     - name: fileName
                       value: "katib-train.slurm"
                     - name: filePath
