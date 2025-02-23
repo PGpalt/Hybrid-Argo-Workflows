@@ -1,0 +1,141 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: slurm-template
+spec:
+  entrypoint: slurm-submit-job
+  templates:
+    - name: slurm-submit-job
+      inputs:
+        parameters:
+        - name: command
+        - name: fileName
+          default: "NotSet"
+        - name: filePath
+          default: "NotSet"
+      steps:
+      - - name: trigger
+          template: trigger-job
+          arguments:
+            parameters:
+            - name: command
+              value: "{{inputs.parameters.command}}"
+            - name: fileName
+              value: "{{inputs.parameters.fileName}}"
+            - name: filePath
+              value: "{{inputs.parameters.filePath}}"
+      # - - name: wait
+      #     template: wait
+      #     arguments:
+      #       parameters:
+      #         - name: job_id
+      #           valueFrom:
+      #             fieldRef:
+      #               fieldPath: steps.trigger-job.metadata.name
+
+    - name: trigger-job
+      metadata:
+        labels:
+          katib.kubeflow.org/model-training: "true"
+      inputs:
+        parameters:
+        - name: command
+        - name: fileName
+          default: "NotSet"
+        - name: filePath
+          default: "NotSet"
+      script:
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        name: model-training
+        image: my-ssh-client:latest
+        imagePullPolicy: IfNotPresent
+        command: [bash]
+        source: |
+          #!/bin/bash
+          # Extract the suffix from POD_NAME
+          SUFFIX=${POD_NAME##*-}
+          echo "Pod suffix: ${SUFFIX}"
+          
+          # Create a directory for the SLURM job on the remote host using the suffix
+          sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "mkdir -p slurm-job-${SUFFIX}"
+    
+          # Check if a fileName was provided
+          if [ "{{inputs.parameters.fileName}}" != "NotSet" ] && [ "{{inputs.parameters.filePath}}" != "NotSet" ]; then
+    
+            # Create the directory on the SLURM cluster if it doesn't exist
+            sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "cd slurm-job-${SUFFIX} && mkdir -p {{inputs.parameters.filePath}}"
+    
+            # Download the file from MinIO locally in the pod
+            curl -o /tmp/{{inputs.parameters.fileName}} http://{{inputs.parameters.minioEndpoint}}/{{inputs.parameters.bucket}}/{{inputs.parameters.fileName}}
+            
+            # Transfer the file to the remote SLURM machine via SCP
+            sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 /tmp/{{inputs.parameters.fileName}} root@host.minikube.internal:slurm-job-${SUFFIX}/{{inputs.parameters.filePath}}/{{inputs.parameters.fileName}}
+          fi
+          
+          # Run the SLURM command on the remote machine, using the transferred file
+          # Submit the job and capture the output
+          output=$(sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "cd slurm-job-${SUFFIX} && {{inputs.parameters.command}}")
+          echo "Submission output: ${output}"
+
+          # Extract the job ID (assumes the job id is the 4th word)
+          job_id=$(echo ${output} | awk '{print $4}')
+          echo "Job submitted with ID: ${job_id}"
+
+          if [ "$(echo ${output} | awk '{print $1}')" = "sbatch" ]; then
+            # Poll the job status until it is no longer in squeue
+            while sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "squeue -j ${job_id}" | grep -q "${job_id}"; do
+                echo "Job ${job_id} is still running. Waiting..."
+                sleep 5  # Wait for 5 seconds before checking again.
+            done        
+            echo "Job ${job_id} has completed."
+          fi
+
+          # Trasnfer the script output from SLURM back to the container
+          sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 root@host.minikube.internal:slurm-job-${SUFFIX}/mnist.log /katib/mnist.log       
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+
+    - name: wait
+      inputs:
+        parameters:
+          - name: job_id
+      suspend: {}
+
+    - name: slurm-file-transfer
+      inputs:
+        parameters:
+        - name: fileName
+        - name: filePath
+        - name: minioEndpoint
+        - name: bucket
+      script:
+        image: my-ssh-client:latest
+        imagePullPolicy: IfNotPresent
+        command: [bash]
+        source: |
+          #!/bin/bash
+          
+          # Create the directory if it doesnt exist on the SLURM cluster
+          sshpass -p 'root' ssh -o StrictHostKeyChecking=no -p 2222 root@host.minikube.internal "mkdir -p {{inputs.parameters.filePath}}"
+    
+          # Download the file from MinIO locally in the pod
+          curl -o /tmp/{{inputs.parameters.fileName}} http://{{inputs.parameters.minioEndpoint}}/{{inputs.parameters.bucket}}/{{inputs.parameters.fileName}}
+          
+          # Transfer the file to the remote SLURM machine via SCP
+          sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 /tmp/{{inputs.parameters.fileName}} root@host.minikube.internal:{{inputs.parameters.filePath}}/{{inputs.parameters.fileName}}
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"

@@ -5,5 +5,9 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends openssh-client sshpass curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Optionally set an entrypoint if needed
-ENTRYPOINT ["/bin/sh", "-c"]
+# Copy the trigger-job script into the image
+COPY trigger-job.sh /usr/local/bin/trigger-job.sh
+RUN chmod +x /usr/local/bin/trigger-job.sh
+
+# Set the default command to run the script
+CMD ["/usr/local/bin/trigger-job.sh"]
