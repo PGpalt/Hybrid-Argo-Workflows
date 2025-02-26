@@ -1,0 +1,37 @@
+jobs:
+  - name: job1
+    type: k8s
+    jobSpec:
+      script:
+        image: python:alpine3.6
+        command:
+          - python
+        source: |
+          import random
+          print(60000//random.randint(12000, 12000))
+
+  - name: generate
+    type: k8s
+    jobSpec:
+      container:
+        image: argoproj/argosay:v2
+        args: [ echo, hello, /mnt/file ]
+      outputs:
+        artifacts:
+          - name: file
+            path: /mnt/file
+            s3:
+              key: data/my-file
+
+  - name: job2
+    type: slurm
+    command: "srun python3 distributed-mnist.py --lr=0.017 --epochs={{tasks.job1.outputs.result}} --batch-size=16 --log-path=mnist.log"
+    s3artifact: "data"
+    # This input indicates that job2 depends on an output from job1.
+    inputs:
+      - name: file
+        from: generate
+        type: artifact
+      - name: input1
+        from: job1
+        type: parameter

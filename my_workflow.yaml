@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: example-
+spec:
+  entrypoint: example
+  templates:
+  - dag:
+      tasks:
+      - name: job1
+        template: job1-template
+      - name: generate
+        template: generate-template
+      - arguments:
+          parameters:
+          - name: command
+            value: srun python3 distributed-mnist.py --lr=0.017 --epochs={{tasks.job1.outputs.result}}
+              --batch-size=16 --log-path=mnist.log
+          - name: s3artifact
+            value: data
+          - name: input1
+            value: '{{tasks.job1.outputs.result}}'
+        dependencies:
+        - job1
+        name: job2
+        templateRef:
+          name: slurm-template
+          template: slurm-submit-job
+    name: example
+  - name: job1-template
+    script:
+      command:
+      - python
+      image: python:alpine3.6
+      source: 'import random
+
+        print(60000//random.randint(12000, 12000))
+
+        '
+  - container:
+      args:
+      - echo
+      - hello
+      - /mnt/file.txt
+      image: argoproj/argosay:v2
+    name: generate-template
+    outputs:
+      artifacts:
+      - name: file
+        path: /mnt/file.txt
+        s3:
+          key: data/my-file.txt

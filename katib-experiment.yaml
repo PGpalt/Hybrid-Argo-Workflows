@@ -73,7 +73,7 @@ spec:
                 - python
               source: |
                 import random
-                print(60000//random.randint(6000, 10000))
+                print(60000//random.randint(12000, 12000))
 
           - name: model-training
             inputs:
