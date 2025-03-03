@@ -20,11 +20,14 @@ spec:
         name: print-message-from-slurm-output
         template: print-message-from-slurm-output-template
       - arguments:
+          artifacts:
+          - from: '{{tasks.model-training.outputs.artifacts.output-artifact}}'
+            name: input-artifact
           parameters:
           - name: command
             value: cat mnist.log
           - name: slurmInput
-            value: '{{tasks.model-training.outputs.parameters.output-path}}'
+            value: 'true'
         dependencies:
         - model-training
         name: print-slurm-message-from-slurm-output
@@ -55,7 +58,9 @@ spec:
           - name: outputFileName
             value: mnist.log
           - name: outputFilePath
-            value: /slurm-out
+            value: slurm-out
+          - name: fetchData
+            value: 'true'
           - name: s3artifact
             value: data
         dependencies:
@@ -73,7 +78,7 @@ spec:
       image: python:alpine3.6
       source: 'import random
 
-        print(60000//random.randint(30000, 30000))
+        print(60000//random.randint(40000, 40000))
 
         '
   - container:
@@ -98,7 +103,7 @@ spec:
           path: /tmp/file.txt
   - container:
       args:
-      - cat /tmp/message
+      - cat /tmp/message/mnist.log
       command:
       - sh
       - -c

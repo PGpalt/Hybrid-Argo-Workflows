@@ -8,7 +8,7 @@ jobs:
           - python
         source: |
           import random
-          print(60000//random.randint(30000, 30000))
+          print(60000//random.randint(40000, 40000))
 
   - name: generate
     type: k8s
@@ -42,7 +42,7 @@ jobs:
       container:
         image: alpine:latest
         command: [sh, -c]
-        args: ["cat /tmp/message"] 
+        args: ["cat /tmp/message/mnist.log"] 
     inputs:
       - name: message
         from: model-training  
@@ -99,4 +99,4 @@ jobs:
       - name: outputFileName
         value: mnist.log
       - name: outputFilePath
-        value: /slurm-out
+        value: slurm-out

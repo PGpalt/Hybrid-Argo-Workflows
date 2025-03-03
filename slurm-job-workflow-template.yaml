@@ -8,65 +8,32 @@ spec:
     - name: slurm-submit-job
       inputs:
         parameters:
-        - name: command
-        - name: s3artifact
-          default: "NotSet"    
-        - name: slurmInput
-          default: "NotSet"           
-        - name: outputFileName
-          default: "NotSet"
-        - name: outputFilePath
-          default: "NotSet"
-      steps:
-      - - name: trigger
-          template: trigger-job
-          arguments:
-            parameters:
-            - name: command
-              value: "{{inputs.parameters.command}}"
-            - name: s3artifact
-              value: "{{inputs.parameters.s3artifact}}"
-            - name: outputFileName
-              value: "{{inputs.parameters.outputFileName}}"
-            - name: outputFilePath
-              value: "{{inputs.parameters.outputFilePath}}"
-            - name: slurmInput
-              value: "{{inputs.parameters.slurmInput}}"
-      outputs:
-        artifacts:
-          - name: output-artifact
-            from: "{{steps.trigger.outputs.artifacts.output-artifact}}"
-
-    - name: trigger-job
-      metadata:
-        labels:
-          katib.kubeflow.org/model-training: "true"
-      inputs:
+          - name: command
+          - name: s3artifact
+            default: "NotSet"
+          - name: slurmInput
+            default: "false"
+          - name: fetchData
+            default: "false"
+          - name: outputFileName
+            default: "NotSet"
+          - name: outputFilePath
+            default: "default"
         artifacts:
           - name: input-artifact
             path: /tmp/
             optional: true
             s3:
               key: "{{inputs.parameters.s3artifact}}"
-        parameters:
-        - name: command
-        - name: s3artifact
-        - name: outputFileName
-        - name: outputFilePath
-        - name: slurmInput
       outputs:
         artifacts:
           - name: output-artifact
             path: "{{inputs.parameters.outputFilePath}}/"
             optional: true
             s3:
-              key: "{{workflow.uid}}/{{inputs.parameters.outputFileName}}"
+              key: "{{workflow.uid}}/"
             archive:
-              none: { }
-        parameters: 
-        - name: output-path
-          valueFrom:
-            path: /slurm-job-path
+              none: {}
       container:
         env:
           - name: POD_NAME
@@ -83,6 +50,8 @@ spec:
             value: "{{inputs.parameters.outputFilePath}}"
           - name: SLURM_INPUT
             value: "{{inputs.parameters.slurmInput}}"
+          - name: FETCH_DATA
+            value: "{{inputs.parameters.fetchData}}"
         image: my-ssh-client:latest
         imagePullPolicy: IfNotPresent
         command: ["/usr/local/bin/trigger-job.sh"]
@@ -93,9 +62,3 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
-
-    - name: wait
-      inputs:
-        parameters:
-          - name: job_id
-      suspend: {}
