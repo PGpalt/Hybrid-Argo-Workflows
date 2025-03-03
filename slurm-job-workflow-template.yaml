@@ -10,11 +10,13 @@ spec:
         parameters:
         - name: command
         - name: s3artifact
-          default: "NotSet"        
-        # - name: fileName
-        #   default: "NotSet"
-        # - name: filePath
-        #   default: "NotSet"
+          default: "NotSet"    
+        - name: slurmInput
+          default: "NotSet"           
+        - name: outputFileName
+          default: "NotSet"
+        - name: outputFilePath
+          default: "NotSet"
       steps:
       - - name: trigger
           template: trigger-job
@@ -24,18 +26,16 @@ spec:
               value: "{{inputs.parameters.command}}"
             - name: s3artifact
               value: "{{inputs.parameters.s3artifact}}"
-            # - name: fileName
-            #   value: "{{inputs.parameters.fileName}}"
-            # - name: filePath
-            #   value: "{{inputs.parameters.filePath}}"
-      # - - name: wait
-      #     template: wait
-      #     arguments:
-      #       parameters:
-      #         - name: job_id
-      #           valueFrom:
-      #             fieldRef:
-      #               fieldPath: steps.trigger-job.metadata.name
+            - name: outputFileName
+              value: "{{inputs.parameters.outputFileName}}"
+            - name: outputFilePath
+              value: "{{inputs.parameters.outputFilePath}}"
+            - name: slurmInput
+              value: "{{inputs.parameters.slurmInput}}"
+      outputs:
+        artifacts:
+          - name: output-artifact
+            from: "{{steps.trigger.outputs.artifacts.output-artifact}}"
 
     - name: trigger-job
       metadata:
@@ -51,10 +51,22 @@ spec:
         parameters:
         - name: command
         - name: s3artifact
-        # - name: fileName
-        #   default: "NotSet"
-        # - name: filePath
-        #   default: "NotSet"
+        - name: outputFileName
+        - name: outputFilePath
+        - name: slurmInput
+      outputs:
+        artifacts:
+          - name: output-artifact
+            path: "{{inputs.parameters.outputFilePath}}/"
+            optional: true
+            s3:
+              key: "{{workflow.uid}}/{{inputs.parameters.outputFileName}}"
+            archive:
+              none: { }
+        parameters: 
+        - name: output-path
+          valueFrom:
+            path: /slurm-job-path
       container:
         env:
           - name: POD_NAME
@@ -65,13 +77,15 @@ spec:
             value: "{{inputs.parameters.command}}"
           - name: TRANSFER_DATA
             value: "{{inputs.parameters.s3artifact}}"
-          # - name: FILE_NAME
-          #   value: "{{inputs.parameters.fileName}}"
-          # - name: FILE_PATH
-          #   value: "{{inputs.parameters.filePath}}"  
+          - name: FILE_NAME
+            value: "{{inputs.parameters.outputFileName}}"
+          - name: FILE_PATH
+            value: "{{inputs.parameters.outputFilePath}}"
+          - name: SLURM_INPUT
+            value: "{{inputs.parameters.slurmInput}}"
         image: my-ssh-client:latest
         imagePullPolicy: IfNotPresent
-        command: ["/usr/local/bin/trigger-job.sh"]   
+        command: ["/usr/local/bin/trigger-job.sh"]
         resources:
           requests:
             memory: "128Mi"
