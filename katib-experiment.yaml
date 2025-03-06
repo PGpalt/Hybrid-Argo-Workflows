@@ -51,35 +51,42 @@ spec:
     trialSpec:
       apiVersion: argoproj.io/v1alpha1
       kind: Workflow
-      spec:        
-        serviceAccountName: argo
-        entrypoint: hp-workflow
+      metadata:
+        generateName: hybrid-workflow-
+      spec:
+        entrypoint: hybrid-workflow
         templates:
-          - name: hp-workflow
-            steps:
-              - - name: data-preprocessing
-                  template: gen-epochs
-              - - name: model-training
-                  templateRef:
-                    name: slurm-template
-                    template: slurm-submit-job   
-                  arguments:
-                    parameters:
-                      - name: command
-                        value: "export LR=${trialParameters.learningRate} && export epochs={{steps.data-preprocessing.outputs.result}} && sbatch katib-train.slurm"
-                        # value: "srun --ntasks=2 python3 distributed-mnist.py --lr=${trialParameters.learningRate} --epochs={{steps.data-preprocessing.outputs.result}} --batch-size=16 --log-path=mnist.log"
-                      - name: s3artifact
-                        value: "data"  
-                      - name: outputFileName
-                        value: "mnist.log"
-                      - name: outputFilePath
-                        value: "/katib"  
+        - dag:
+            tasks:
+            - name: gen-epochs
+              template: gen-epochs-template
+            - arguments:
+                parameters:
+                - name: command
+                  value: export LR=${trialParameters.learningRate} && export epochs={{tasks.gen-epochs.outputs.result}}
+                    && sbatch katib-train.slurm
+                - name: outputFileName
+                  value: mnist.log
+                - name: outputFilePath
+                  value: katib
+                - name: s3artifact
+                  value: data
+                - name: fetchData
+                  value: "true"
+              dependencies:
+              - gen-epochs
+              name: model-training
+              templateRef:
+                name: slurm-template
+                template: slurm-submit-job
+          name: hybrid-workflow
+        - name: gen-epochs-template
+          script:
+            command:
+            - python
+            image: python:alpine3.6
+            source: 'import random
 
-          - name: gen-epochs
-            script:
-              image: python:alpine3.6
-              command:
-                - python
-              source: |
-                import random
-                print(60000//random.randint(30000, 30000))
+              print(60000//random.randint(40000, 40000))
+
+              '

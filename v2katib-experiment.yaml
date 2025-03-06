@@ -60,11 +60,20 @@ spec:
               - - name: data-preprocessing
                   template: gen-epochs
               - - name: model-training
-                  template: model-training
+                  templateRef:
+                    name: slurm-template
+                    template: slurm-submit-job   
                   arguments:
                     parameters:
-                      - name: epochs
-                        value: "{{steps.data-preprocessing.outputs.result}}"
+                      - name: command
+                        value: "export LR=${trialParameters.learningRate} && export epochs={{steps.data-preprocessing.outputs.result}} && sbatch katib-train.slurm"
+                        # value: "srun --ntasks=2 python3 distributed-mnist.py --lr=${trialParameters.learningRate} --epochs={{steps.data-preprocessing.outputs.result}} --batch-size=16 --log-path=mnist.log"
+                      - name: s3artifact
+                        value: "data"  
+                      - name: outputFileName
+                        value: "mnist.log"
+                      - name: outputFilePath
+                        value: "/katib"  
 
           - name: gen-epochs
             script:
@@ -73,29 +82,4 @@ spec:
                 - python
               source: |
                 import random
-                print(60000//random.randint(6000, 10000))
-
-          - name: model-training
-            inputs:
-              parameters:
-                - name: epochs
-            steps:
-            - - name: execute-ssh
-                templateRef:
-                  name: slurm-template
-                  template: slurm-submit-job                 
-                arguments:
-                  parameters:
-                    - name: command
-                      value: "export LR=${trialParameters.learningRate} && export epochs={{inputs.parameters.epochs}} && sbatch katib-train.slurm"
-                      # value: "srun --ntasks=2 python3 distributed-mnist.py --lr=${trialParameters.learningRate} --epochs={{inputs.parameters.epochs}} --batch-size=16 --log-path=mnist.log"
-                    - name: scriptName
-                      value: "distributed-mnist.py"
-                    - name: minioEndpoint
-                      value: "minio.argo.svc.cluster.local:9000"
-                    - name: bucket
-                      value: "my-bucket"
-                    - name: fileName
-                      value: "katib-train.slurm"
-                    - name: filePath
-                      value: ""
+                print(60000//random.randint(30000, 30000))

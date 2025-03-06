@@ -6,6 +6,9 @@ spec:
   entrypoint: slurm-submit-job
   templates:
     - name: slurm-submit-job
+      metadata:
+        labels:
+          katib.kubeflow.org/model-training: "true"
       inputs:
         parameters:
           - name: command
@@ -31,7 +34,7 @@ spec:
             path: "{{inputs.parameters.outputFilePath}}/"
             optional: true
             s3:
-              key: "{{workflow.uid}}/"
+              key: "{{workflow.uid}}/{{pod.name}}"
             archive:
               none: {}
       container:
