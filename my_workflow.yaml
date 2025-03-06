@@ -64,8 +64,8 @@ spec:
           - name: s3artifact
             value: data
         dependencies:
-        - gen-epochs
         - generate
+        - gen-epochs
         name: model-training
         templateRef:
           name: slurm-template

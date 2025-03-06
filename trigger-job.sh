@@ -40,5 +40,13 @@ fi
 
 # Transfer the SLURM output back to the pod and store the s3 artifact if required
 if [ "${FILE_NAME}" != "NotSet" ] && [ "${FETCH_DATA}" == "true" ]; then
-  sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 root@host.minikube.internal:slurm-job-${SUFFIX}/${FILE_NAME} ${FILE_PATH}/${FILE_NAME}
+  if [[ "${FILE_NAME}" == /* ]]; then
+    # FILE_NAME starts with '/', so use it directly on the remote host
+    # and extract only the basename for the local destination.
+    base_file=$(basename "${FILE_NAME}")
+    sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 root@host.minikube.internal:"${FILE_NAME}" "${FILE_PATH}/${base_file}"
+  else
+    # Otherwise, use the default remote path (inside the slurm-job-${SUFFIX} directory)
+    sshpass -p 'root' scp -o StrictHostKeyChecking=no -P 2222 root@host.minikube.internal:"slurm-job-${SUFFIX}/${FILE_NAME}" "${FILE_PATH}/${FILE_NAME}"
+  fi
 fi
