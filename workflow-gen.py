@@ -47,6 +47,7 @@ Usage:
 import argparse
 import yaml
 import sys
+import importlib.util
 
 def load_yaml(file_path):
     """Load YAML file from the given path."""
@@ -243,16 +244,37 @@ def build_workflow(jobs):
     workflow["spec"]["templates"].extend(additional_templates)
     return workflow
 
+def load_scheduler(scheduler_path):
+    """Dynamically load the scheduler module from a given file path."""
+    try:
+        spec = importlib.util.spec_from_file_location("scheduler_module", scheduler_path)
+        scheduler_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(scheduler_module)
+        if not hasattr(scheduler_module, "apply_constraints"):
+            sys.exit("The scheduler module must define an 'apply_constraints(workflow, jobs)' function.")
+        return scheduler_module
+    except Exception as e:
+        sys.exit(f"Error loading scheduler module: {e}")
+
 def main():
-    parser = argparse.ArgumentParser(description="Generate an Argo Workflow YAML from a job description YAML file.")
+    parser = argparse.ArgumentParser(
+        description="Generate an Argo Workflow YAML from a job description YAML file."
+    )
     parser.add_argument("input_yaml", help="Path to the input YAML file containing job definitions")
     parser.add_argument("output_yaml", help="Path to the output Argo Workflow YAML file")
+    parser.add_argument("--scheduler", help="Path to a custom scheduler Python file", default=None)
     args = parser.parse_args()
     data = load_yaml(args.input_yaml)
     if "jobs" not in data or not isinstance(data["jobs"], list):
         sys.exit("The input YAML must have a top-level 'jobs' key containing a list of jobs.")
     jobs = data["jobs"]
     workflow = build_workflow(jobs)
+    
+    # If a custom scheduler is provided, load it and apply its constraints.
+    if args.scheduler:
+        scheduler_module = load_scheduler(args.scheduler)
+        workflow = scheduler_module.apply_constraints(workflow, jobs)
+    
     try:
         with open(args.output_yaml, "w") as f:
             yaml.dump(workflow, f, default_flow_style=False)
@@ -262,3 +284,4 @@ def main():
     
 if __name__ == "__main__":
     main()
+    

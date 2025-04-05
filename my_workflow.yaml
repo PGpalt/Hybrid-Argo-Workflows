@@ -4,6 +4,7 @@ metadata:
   generateName: hybrid-workflow-
 spec:
   entrypoint: hybrid-workflow
+  parallelism: 5
   templates:
   - dag:
       tasks:
@@ -67,6 +68,44 @@ spec:
         - generate
         - gen-epochs
         name: model-training
+        templateRef:
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          parameters:
+          - name: command
+            value: srun python3 distributed-mnist.py --lr=0.012 --epochs={{tasks.gen-epochs.outputs.result}}
+              --batch-size=16 --log-path=mnist.log
+          - name: outputFileName
+            value: mnist.log
+          - name: outputFilePath
+            value: slurm-out
+          - name: s3artifact
+            value: data
+        dependencies:
+        - generate
+        - gen-epochs
+        - print-slurm-message-from-slurm-output
+        name: model-training2
+        templateRef:
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          parameters:
+          - name: command
+            value: srun python3 distributed-mnist.py --lr=0.015 --epochs={{tasks.gen-epochs.outputs.result}}
+              --batch-size=16 --log-path=mnist.log
+          - name: outputFileName
+            value: mnist.log
+          - name: outputFilePath
+            value: slurm-out
+          - name: s3artifact
+            value: data
+        dependencies:
+        - generate
+        - gen-epochs
+        - model-training
+        name: model-training3
         templateRef:
           name: slurm-template
           template: slurm-submit-job
