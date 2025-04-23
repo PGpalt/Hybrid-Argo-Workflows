@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mnist_distributed
+#SBATCH --nodes=1
 #SBATCH --ntasks=2
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:20:00

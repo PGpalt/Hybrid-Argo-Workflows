@@ -6,8 +6,12 @@ set -e
 SSH_KEY=/root/.ssh/id_rsa
 SSH_OPTS="-i ${SSH_KEY} \
   -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o Port=${SSH_PORT}"
+  -o UserKnownHostsFile=/dev/nul"
+
+# only add Port if SSH_PORT isn’t empty
+if [ -n "${SSH_PORT}" ]; then
+  SSH_OPTS="${SSH_OPTS} -o Port=${SSH_PORT}"
+fi
 
 if [ "${SLURM_INPUT}" == "false" ]; then
   # Extract the suffix from POD_NAME (populated from the fieldRef in the pod spec)

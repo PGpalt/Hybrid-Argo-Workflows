@@ -71,7 +71,8 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: ssh-connect-info
-                key: sshPort  
+                key: sshPort
+                optional: true  
           - name: COMMAND
             value: "{{inputs.parameters.command}}"
           - name: TRANSFER_DATA
