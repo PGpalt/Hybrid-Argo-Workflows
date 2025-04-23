@@ -11,6 +11,12 @@ spec:
           katib.kubeflow.org/model-training: "true"
       inputs:
         parameters:
+          - name: sshHost
+            default: host.minikube.internal
+          - name: sshUser
+            default: root
+          - name: sshPort
+            default: "2222"
           - name: command
           - name: s3artifact
             default: "NotSet"
@@ -51,6 +57,21 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
+          - name: SSH_HOST
+            valueFrom:
+              secretKeyRef:
+                name: ssh-connect-info
+                key: sshHost
+          - name: SSH_USER
+            valueFrom:
+              secretKeyRef:
+                name: ssh-connect-info
+                key: sshUser
+          - name: SSH_PORT
+            valueFrom:
+              secretKeyRef:
+                name: ssh-connect-info
+                key: sshPort  
           - name: COMMAND
             value: "{{inputs.parameters.command}}"
           - name: TRANSFER_DATA

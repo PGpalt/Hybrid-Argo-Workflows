@@ -9,8 +9,6 @@ spec:
       tasks:
       - name: gen-epochs
         template: gen-epochs-template
-      - name: generate
-        template: generate-template
       - arguments:
           parameters:
           - name: command
@@ -25,7 +23,6 @@ spec:
           - name: s3artifact
             value: data
         dependencies:
-        - generate
         - gen-epochs
         name: model-training
         templateRef:
@@ -50,26 +47,6 @@ spec:
         print(60000//random.randint(40000, 40000))
 
         '
-  - container:
-      args:
-      - echo hello world | tee /tmp/file.txt
-      command:
-      - sh
-      - -c
-      image: busybox
-    name: generate-template
-    outputs:
-      artifacts:
-      - archive:
-          none: {}
-        name: file
-        path: /tmp/file.txt
-        s3:
-          key: data/my-dir/my-file
-      parameters:
-      - name: output-param-1
-        valueFrom:
-          path: /tmp/file.txt
   - container:
       args:
       - cat /tmp/message/mnist.log
