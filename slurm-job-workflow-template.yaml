@@ -37,6 +37,14 @@ spec:
               key: "{{workflow.uid}}/{{pod.name}}"
             archive:
               none: {}
+      volumes:
+        - name: ssh-keys
+          secret:
+            secretName: slurm-ssh-key
+            defaultMode: 0600
+            items:
+              - key: ssh-privatekey
+                path: id_rsa
       container:
         env:
           - name: POD_NAME
@@ -57,6 +65,10 @@ spec:
             value: "{{inputs.parameters.fetchData}}"
         image: my-ssh-client:latest
         imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - name: ssh-keys
+            mountPath: /root/.ssh
+            readOnly: true
         command: ["/usr/local/bin/trigger-job.sh"]
         resources:
           requests:

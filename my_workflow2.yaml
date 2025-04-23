@@ -1,0 +1,84 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: hybrid-workflow-
+spec:
+  entrypoint: hybrid-workflow
+  templates:
+  - dag:
+      tasks:
+      - name: gen-epochs
+        template: gen-epochs-template
+      - name: generate
+        template: generate-template
+      - arguments:
+          parameters:
+          - name: command
+            value: srun python3 distributed-mnist.py --lr=0.017 --epochs={{tasks.gen-epochs.outputs.result}}
+              --batch-size=16 --log-path=mnist.log
+          - name: outputFileName
+            value: mnist.log
+          - name: outputFilePath
+            value: slurm-out
+          - name: fetchData
+            value: 'true'
+          - name: s3artifact
+            value: data
+        dependencies:
+        - generate
+        - gen-epochs
+        name: model-training
+        templateRef:
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          artifacts:
+          - from: '{{tasks.model-training.outputs.artifacts.output-artifact}}'
+            name: message
+        dependencies:
+        - model-training
+        name: print-message-from-slurm-output
+        template: print-message-from-slurm-output-template
+    name: hybrid-workflow
+  - name: gen-epochs-template
+    script:
+      command:
+      - python
+      image: python:alpine3.6
+      source: 'import random
+
+        print(60000//random.randint(40000, 40000))
+
+        '
+  - container:
+      args:
+      - echo hello world | tee /tmp/file.txt
+      command:
+      - sh
+      - -c
+      image: busybox
+    name: generate-template
+    outputs:
+      artifacts:
+      - archive:
+          none: {}
+        name: file
+        path: /tmp/file.txt
+        s3:
+          key: data/my-dir/my-file
+      parameters:
+      - name: output-param-1
+        valueFrom:
+          path: /tmp/file.txt
+  - container:
+      args:
+      - cat /tmp/message/mnist.log
+      command:
+      - sh
+      - -c
+      image: alpine:latest
+    inputs:
+      artifacts:
+      - name: message
+        path: /tmp/message
+    name: print-message-from-slurm-output-template

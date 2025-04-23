@@ -1,4 +1,3 @@
-# my_scheduler.py
 
 def apply_constraints(workflow, jobs):
     """
@@ -10,10 +9,10 @@ def apply_constraints(workflow, jobs):
     # Set global parallelism for the entire workflow.
     workflow["spec"]["parallelism"] = 5
 
-    # Identify slurm job names from the input jobs list.
+    # Identify slurm job names
     slurm_job_names = {job["name"] for job in jobs if job["type"] == "slurm"}
     
-    # Locate the DAG template (assumed to be the first template that has a 'dag' key).
+    # Locate the DAG template
     dag_template = None
     for template in workflow["spec"].get("templates", []):
         if "dag" in template:
@@ -21,7 +20,7 @@ def apply_constraints(workflow, jobs):
             break
 
     if not dag_template:
-        return workflow  # If there's no DAG, nothing to modify.
+        return workflow  
 
     tasks = dag_template["dag"].get("tasks", [])
 

@@ -1,0 +1,63 @@
+jobs:
+  - name: gen-epochs
+    type: k8s
+    jobSpec:
+      script:
+        image: python:alpine3.6
+        command:
+          - python
+        source: |
+          import random
+          print(60000//random.randint(40000, 40000))
+
+  - name: generate
+    type: k8s
+    jobSpec:
+      container:
+        image: busybox
+        command: [sh, -c]
+        args: ["echo hello world | tee /tmp/file.txt"]
+      outputs:
+        parameters:
+          - name: output-param-1
+            valueFrom:
+              path: /tmp/file.txt
+        artifacts:
+          - name: file
+            path: /tmp/file.txt
+            s3:
+              key: data/my-dir/my-file
+            archive:
+              none: { }  
+
+
+  - name: model-training
+    type: slurm
+    command: "srun python3 distributed-mnist.py --lr=0.017 --epochs={{tasks.gen-epochs.outputs.result}} --batch-size=16 --log-path=mnist.log"
+    # command: "export LR=${trialParameters.learningRate} && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
+    inputs:
+      - from: generate
+        value: data
+      - from: gen-epochs
+    outputs:
+      - name: outputFileName
+        value: mnist.log
+      - name: outputFilePath
+        value: slurm-out
+
+  - name: print-message-from-slurm-output
+    type: k8s
+    jobSpec:
+      inputs:
+        artifacts:
+        # unpack the message input artifact
+        # and put it at /tmp/message
+        - name: message
+          path: /tmp/message
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["cat /tmp/message/mnist.log"] 
+    inputs:
+      - name: message
+        from: model-training         
