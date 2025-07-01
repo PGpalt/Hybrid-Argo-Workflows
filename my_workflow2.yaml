@@ -12,8 +12,8 @@ spec:
       - arguments:
           parameters:
           - name: command
-            value: srun python3 distributed-mnist.py --lr=0.017 --epochs={{tasks.gen-epochs.outputs.result}}
-              --batch-size=16 --log-path=mnist.log
+            value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
+              && sbatch katib-train.slurm
           - name: outputFileName
             value: mnist.log
           - name: outputFilePath

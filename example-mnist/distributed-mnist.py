@@ -76,8 +76,9 @@ def set_master_addr():
         raise RuntimeError("Could not determine MASTER_ADDR using NodeAddr") from e
 
 def setup_master_port():
+    workdir = os.environ.get("SLURM_SUBMIT_DIR", "/tmp")
     job_id = os.environ.get("SLURM_JOB_ID", str(os.getpid()))
-    port_file = f"/tmp/master_port_{job_id}.txt"
+    port_file = os.path.join(workdir, f"master_port_{job_id}.txt")
     if RANK == 0:
         free_port = find_free_port()
         os.environ["MASTER_PORT"] = str(free_port)
@@ -107,8 +108,10 @@ RANK = int(os.environ.get("RANK", 0))
 
 set_master_addr()
 port_file = setup_master_port()
-if RANK == 0 and os.path.exists(port_file):
-    os.remove(port_file)
+# if is_distributed():
+#     dist.barrier()  # make sure all workers have initialized
+# if RANK == 0 and os.path.exists(port_file):
+#     os.remove(port_file)
 
 # --- Model ---
 class Net(nn.Module):

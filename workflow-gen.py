@@ -41,7 +41,7 @@ The generated workflow will have:
        where the default output_name is "result" if not explicitly provided.
   
 Usage:
-  python generate_workflow.py input.yaml output-workflow.yaml
+  python3 workflow-gen.py input-job.yaml output-workflow.yaml
 """
 
 import argparse
