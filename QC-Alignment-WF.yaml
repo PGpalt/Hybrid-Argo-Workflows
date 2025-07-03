@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: hybrid-workflow-
+spec:
+  entrypoint: hybrid-workflow
+  templates:
+  - dag:
+      tasks:
+      - name: fastp-trimming
+        template: fastp-trimming-template
+      - arguments:
+          parameters:
+          - name: command
+            value: sbatch QC-Alignment.slurm
+          - name: s3artifact
+            value: GenomicDataAris
+        dependencies:
+        - fastp-trimming
+        name: Alignment
+        templateRef:
+          name: slurm-template
+          template: slurm-submit-job
+    name: hybrid-workflow
+  - container:
+      args:
+      - "mkdir -p /out && \\\nfastp \\\n  -i /data/sample_R1.fastq.gz \\\n  -I /data/sample_R2.fastq.gz\
+        \ \\\n  -o /out/sample_R1.trimmed.fastq.gz \\\n  -O /out/sample_R2.trimmed.fastq.gz\
+        \ \\\n  -h /out/trim_report.html\n"
+      command:
+      - sh
+      - -c
+      image: quay.io/biocontainers/fastp:0.23.1--h79da9fb_0
+    inputs:
+      artifacts:
+      - archive:
+          none: {}
+        name: inputArtifact
+        path: /data
+        s3:
+          key: GenomicData
+    name: fastp-trimming-template
+    outputs:
+      artifacts:
+      - archive:
+          none: {}
+        name: outputArtifact
+        path: /out
+        s3:
+          key: GenomicDataAris

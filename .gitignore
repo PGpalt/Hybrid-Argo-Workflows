@@ -1,2 +1,4 @@
 slurm-ssh-key.yaml
 ssh-creds.yaml
+example-mnist/GenomicData/sample_R1.fastq.gz
+example-mnist/GenomicData/sample_R2.fastq.gz
