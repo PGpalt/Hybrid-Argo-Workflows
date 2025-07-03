@@ -46,7 +46,6 @@ class FashionMNIST_Numpy(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.images)
 
-# --- Distributed setup and helpers (as in your script) ---
 def find_free_port():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((os.environ["MASTER_ADDR"], 0))
@@ -243,7 +242,6 @@ def main():
 
     kwargs = {"num_workers": 1, "pin_memory": True} if use_cuda else {}
 
-    # ---- DATASET (NO torchvision!) ----
     data_dir = "./data"
     train_images = os.path.join(data_dir, "train-images-idx3-ubyte")
     train_labels = os.path.join(data_dir, "train-labels-idx1-ubyte")
