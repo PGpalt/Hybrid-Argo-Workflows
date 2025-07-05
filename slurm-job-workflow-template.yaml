@@ -6,9 +6,9 @@ spec:
   entrypoint: slurm-submit-job
   templates:
     - name: slurm-submit-job
-      metadata:
-        labels:
-          katib.kubeflow.org/model-training: "true"
+      # metadata:
+      #   labels:
+      #     katib.kubeflow.org/model-training: "true"
       inputs:
         parameters:
           - name: sshHost

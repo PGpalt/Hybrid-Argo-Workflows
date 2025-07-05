@@ -8,7 +8,7 @@ jobs:
           - python
         source: |
           import random
-          print(60000//random.randint(40000, 40000))
+          print(60000//random.randint(10000, 40000))
 
   - name: model-training
     type: slurm
@@ -19,26 +19,27 @@ jobs:
       - value: data
       - from: gen-epochs
     outputs:
-      - name: fetchData
-        value: true
       - name: outputFileName
         value: mnist.log
       - name: outputFilePath
         value: slurm-out
 
-  # - name: print-message-from-slurm-output
-  #   type: k8s
-  #   jobSpec:
-  #     inputs:
-  #       artifacts:
-  #       # unpack the message input artifact
-  #       # and put it at /tmp/message
-  #       - name: message
-  #         path: /tmp/message
-  #     container:
-  #       image: alpine:latest
-  #       command: [sh, -c]
-  #       args: ["cat /tmp/message/mnist.log"] 
-  #   inputs:
-  #     - name: message
-  #       from: model-training         
+  - name: print-message-from-slurm-output
+    type: k8s
+    jobSpec:
+      inputs:
+        artifacts:
+        # unpack the message input artifact
+        # and put it at /tmp/message
+        - name: logs
+          path: "/tmp/logs"
+      metadata:
+        labels:
+          katib.kubeflow.org/model-training: "true"
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["sleep 5;ls -l /tmp/logs;cp /tmp/logs/mnist.log /katib/mnist.log"]
+    inputs:
+      - name: logs
+        from: model-training         

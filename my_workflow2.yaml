@@ -14,12 +14,12 @@ spec:
           - name: command
             value: export LR=${trialParameters.learningRate} && export epochs={{tasks.gen-epochs.outputs.result}}
               && sbatch katib-train.slurm
-          - name: fetchData
-            value: true
           - name: outputFileName
             value: mnist.log
           - name: outputFilePath
             value: slurm-out
+          - name: fetchData
+            value: 'true'
           - name: s3artifact
             value: data
         dependencies:
@@ -28,6 +28,14 @@ spec:
         templateRef:
           name: slurm-template
           template: slurm-submit-job
+      - arguments:
+          artifacts:
+          - from: '{{tasks.model-training.outputs.artifacts.output-artifact}}'
+            name: logs
+        dependencies:
+        - model-training
+        name: print-message-from-slurm-output
+        template: print-message-from-slurm-output-template
     name: hybrid-workflow
   - name: gen-epochs-template
     script:
@@ -36,6 +44,21 @@ spec:
       image: python:alpine3.6
       source: 'import random
 
-        print(60000//random.randint(40000, 40000))
+        print(60000//random.randint(10000, 40000))
 
         '
+  - container:
+      args:
+      - sleep 5;ls -l /tmp/logs;cp /tmp/logs/mnist.log /katib/mnist.log
+      command:
+      - sh
+      - -c
+      image: alpine:latest
+    inputs:
+      artifacts:
+      - name: logs
+        path: /tmp/logs
+    metadata:
+      labels:
+        katib.kubeflow.org/model-training: 'true'
+    name: print-message-from-slurm-output-template
