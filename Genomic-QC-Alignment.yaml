@@ -37,3 +37,10 @@ jobs:
     inputs:
       - from: fastp-trimming
         value: GenomicDataAris
+    outputs:
+      - name: fetchData
+        value: true
+      - name: outputFileName
+        value: Genomic-QC-Alignment.out
+      - name: outputFilePath
+        value: slurm-out

@@ -13,6 +13,12 @@ spec:
           parameters:
           - name: command
             value: sbatch QC-Alignment.slurm
+          - name: fetchData
+            value: true
+          - name: outputFileName
+            value: Genomic-QC-Alignment.out
+          - name: outputFilePath
+            value: slurm-out
           - name: s3artifact
             value: GenomicDataAris
         dependencies:
