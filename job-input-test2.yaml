@@ -12,11 +12,10 @@ jobs:
 
   - name: model-training
     type: slurm
-    # command: "srun python3 distributed-mnist.py --lr=0.017 --epochs={{tasks.gen-epochs.outputs.result}} --batch-size=16 --log-path=mnist.log"
-    command: "export LR=${trialParameters.learningRate} && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
-    # command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
+    # command: "export LR=${trialParameters.learningRate} && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
+    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
     inputs:
-      - value: data
+      - s3key: data
       - from: gen-epochs
     outputs:
       - name: outputFileName
@@ -39,7 +38,8 @@ jobs:
       container:
         image: alpine:latest
         command: [sh, -c]
-        args: ["sleep 5;ls -l /tmp/logs;cp /tmp/logs/mnist.log /katib/mnist.log"]
+        # args: ["sleep 5;ls -l /tmp/logs;cp /tmp/logs/mnist.log /katib/mnist.log"]
+        args: [cat /tmp/logs/mnist.log]
     inputs:
       - name: logs
         from: model-training         

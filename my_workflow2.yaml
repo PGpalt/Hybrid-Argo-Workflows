@@ -12,8 +12,8 @@ spec:
       - arguments:
           parameters:
           - name: command
-            value: export LR=${trialParameters.learningRate} && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train.slurm
+            value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
+              && sbatch katib-train-local.slurm
           - name: outputFileName
             value: mnist.log
           - name: outputFilePath
@@ -49,7 +49,7 @@ spec:
         '
   - container:
       args:
-      - sleep 5;ls -l /tmp/logs;cp /tmp/logs/mnist.log /katib/mnist.log
+      - cat /tmp/logs/mnist.log
       command:
       - sh
       - -c

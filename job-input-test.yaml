@@ -91,8 +91,8 @@ jobs:
     type: slurm
     command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
     inputs:
+      - s3key: data
       - from: generate
-        value: data
       - from: gen-epochs
     outputs:
       - name: outputFileName
@@ -104,8 +104,8 @@ jobs:
     type: slurm
     command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
     inputs:
+      - s3key: data
       - from: generate
-        value: data
       - from: gen-epochs
     outputs:
       - name: outputFileName
@@ -118,7 +118,7 @@ jobs:
     command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
     inputs:
       - from: generate
-        value: data
+        s3key: data
       - from: gen-epochs
     outputs:
       - name: outputFileName

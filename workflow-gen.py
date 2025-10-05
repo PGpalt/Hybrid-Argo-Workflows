@@ -14,19 +14,39 @@ Each job must include:
                  If given as "jobName.outputName", then that output name is used.
                  If given as "jobName", then "result" is used as the default output name.
         - type: (optional) either "parameter" (default) or "artifact".
-        - value: (optional) a literal value (for external inputs).
+        - value: (optional; **k8s only**) a literal value (for external inputs).
+        - s3key: (optional; **slurm only**) a literal S3 key to pass to the slurm template.
 
 For slurm jobs (type "slurm"), the job must define:
   - command (e.g. the slurm submission command)
 and the DAG task will use a templateRef to reference an externally defined slurm template.
-If an input mapping contains a literal "value", it will be passed as the s3artifact parameter;
-if only "from" is specified, then:
-  - for non-slurm target jobs, the dependency is added and if the source is slurm the output artifact is used;
-  - for slurm target jobs and the source is slurm, the input is passed as both:
-      * a parameter "slurmInput" set to "true"
-      * an artifact named "input-artifact" referencing the source’s output artifact.
 
-Additionally, for slurm jobs if an outputs section is defined in the input (e.g. outputFileName and outputFilePath),
+INPUT MAPPING (important behavioral points):
+  • For non-slurm target jobs:
+      - Each input must have a 'name'.
+      - If the input comes from another job ("from"), then:
+          - If the source job is slurm, an **artifact** arg is generated referencing the slurm job's "output-artifact".
+          - Otherwise:
+              - If input type is "artifact", reference the source artifact by name.
+              - Else, use a parameter reference.
+      - If the input is a literal, use "value" (unchanged behavior).
+
+  • For slurm target jobs:
+      - The 'name' field is ignored.
+      - If an input uses a literal S3 key, specify it as **s3key** (not "value"). This is passed as parameter "s3artifact".
+      - The compiler enforces that **s3key appears at most once per slurm job** (across all its inputs).
+      - If an input only has "from" and the source job is slurm:
+            * add parameter "slurmInput"="true"
+            * add artifact named "input-artifact" from the source's "output-artifact"
+        (Multiple such inputs are allowed; if multiple artifacts share the same name,
+         the last one wins due to Argo argument name uniqueness.)
+      - Using "value" on slurm jobs is not allowed (use "s3key" instead).
+
+OUTPUTS:
+  • For both k8s and slurm jobs, the job's **outputs** section continues to use **value**.
+    (Only inputs for slurm jobs use **s3key**.)
+
+Additionally, for slurm jobs if an outputs section is defined (e.g. outputFileName and outputFilePath),
 those values are added as parameters so that the slurm template receives them.
 In that case, if a slurm job defines outputs and is referenced by a non-slurm job, an extra parameter
 fetchData is set to true.
@@ -49,6 +69,7 @@ import yaml
 import sys
 import importlib.util
 
+
 def load_yaml(file_path):
     """Load YAML file from the given path."""
     try:
@@ -56,6 +77,7 @@ def load_yaml(file_path):
             return yaml.safe_load(f)
     except Exception as e:
         sys.exit(f"Error loading YAML file: {e}")
+
 
 def process_job_inputs(job, job_type=None, job_types=None):
     """
@@ -65,7 +87,8 @@ def process_job_inputs(job, job_type=None, job_types=None):
     For non-slurm target jobs, each input must have a 'name' field.
     
     For slurm target jobs, the name is ignored:
-      - If a literal "value" is provided, the parameter name is forced to "s3artifact".
+      - If a literal **s3key** is provided, the parameter name is forced to "s3artifact".
+        (This may appear only once across all inputs for a slurm job.)
       - If only "from" is provided and the source job is slurm, both:
             a parameter "slurmInput" with value "true" and
             an artifact with name "input-artifact" referencing "{{tasks.<source_job>.outputs.artifacts.output-artifact}}"
@@ -85,23 +108,56 @@ def process_job_inputs(job, job_type=None, job_types=None):
     args = {}
     params = []
     artifacts = []
+
+    # Track if s3key has already been used for this slurm job
+    s3key_used = False
+
     for inp in job.get("inputs", []):
         if job_type != "slurm":
+            # Non-slurm inputs must be named
             if not isinstance(inp, dict) or "name" not in inp:
                 sys.exit("Each input must be a dict with at least a 'name' field for non-slurm jobs.")
-        if "value" in inp:
-            if job_type == "slurm":
-                params.append({"name": "s3artifact", "value": inp["value"]})
-            else:
+
+            # Non-slurm literal allowed via 'value' (unchanged)
+            if "value" in inp:
                 params.append({"name": inp["name"], "value": inp["value"]})
-        elif "from" in inp:
+                continue
+
+            # 's3key' is NOT valid for k8s inputs
+            if "s3key" in inp:
+                sys.exit(
+                    f"Job '{job.get('name', '?')}' (type k8s) uses 's3key' in inputs; "
+                    "this key is only valid for slurm jobs. Use 'value' instead for literals."
+                )
+
+        # Slurm target job: enforce 's3key' semantics and reject 'value'
+        if job_type == "slurm":
+            if "value" in inp:
+                sys.exit(
+                    f"Job '{job.get('name', '?')}' (type slurm) uses a 'value' literal; "
+                    "please use 's3key' instead."
+                )
+            if "s3key" in inp:
+                if s3key_used:
+                    sys.exit(
+                        f"Job '{job.get('name', '?')}' (type slurm) specifies 's3key' more than once; "
+                        "only a single 's3key' literal is allowed per slurm job."
+                    )
+                s3key_used = True
+                params.append({"name": "s3artifact", "value": inp["s3key"]})
+                continue
+
+        # Handle "from" references
+        if "from" in inp:
             source = inp["from"]
             if "." in source:
                 source_job, output_name = source.split(".", 1)
             else:
                 source_job = source
                 output_name = "result"
+
             if job_type != "slurm":
+                # Non-slurm consumer of another job
                 if job_types and source_job in job_types and job_types[source_job] == "slurm":
                     artifacts.append({
                         "name": inp["name"],
@@ -119,22 +175,26 @@ def process_job_inputs(job, job_type=None, job_types=None):
                             "value": f"{{{{tasks.{source_job}.outputs.parameters.{output_name}}}}}"
                         })
             else:
+                # Slurm target job consuming from another slurm job
                 if job_types and source_job in job_types and job_types[source_job] == "slurm":
-                    # Add both the parameter and artifact for slurm target jobs.
                     params.append({"name": "slurmInput", "value": "true"})
                     artifacts.append({
                         "name": "input-artifact",
                         "from": f"{{{{tasks.{source_job}.outputs.artifacts.output-artifact}}}}"
                     })
                 else:
+                    # Non-slurm source to slurm target -> no direct mapping
                     continue
         else:
-            sys.exit(f"Input '{inp.get('name', 'unknown')}' must have either a 'from' or a 'value' field.")
+            # No 'value'/'s3key' and no 'from' -> invalid input spec
+            sys.exit(f"Input '{inp.get('name', 'unknown')}' must have either a 'from', 'value' (k8s), or 's3key' (slurm).")
+
     if params:
         args["parameters"] = params
     if artifacts:
         args["artifacts"] = artifacts
     return args
+
 
 def merge_arguments(existing, new):
     merged = {}
@@ -152,6 +212,7 @@ def merge_arguments(existing, new):
             result[key] = list(merged[key].values())
     return result
 
+
 def build_workflow(jobs):
     # Build a mapping of job name to job type.
     job_types = {job["name"]: job["type"] for job in jobs}
@@ -168,6 +229,7 @@ def build_workflow(jobs):
                         source_job = source
                     if source_job in slurm_job_needs:
                         slurm_job_needs[source_job] = True
+
     workflow = {
         "apiVersion": "argoproj.io/v1alpha1",
         "kind": "Workflow",
@@ -177,13 +239,18 @@ def build_workflow(jobs):
             "templates": [{"name": "hybrid-workflow", "dag": {"tasks": []}}]
         }
     }
+
     dag_tasks = []
     additional_templates = []
     used_templates = set()
+
     for job in jobs:
         if "name" not in job or "type" not in job:
             sys.exit("Every job must have a 'name' and a 'type' field.")
+
         task = {"name": job["name"]}
+
+        # Dependencies: any input that has 'from'
         dep_jobs = []
         for inp in job.get("inputs", []):
             if isinstance(inp, dict) and "from" in inp:
@@ -195,13 +262,17 @@ def build_workflow(jobs):
                 dep_jobs.append(source_job)
         if dep_jobs:
             task["dependencies"] = list(set(dep_jobs))
+
+        # Build arguments from inputs
         input_args = process_job_inputs(job, job_type=job["type"], job_types=job_types)
+
         task_args = {}
         if job["type"] == "slurm":
             if "command" not in job:
                 sys.exit(f"Slurm job '{job['name']}' requires a 'command' field.")
             cmd_param = {"name": "command", "value": job["command"]}
             task_args["parameters"] = [cmd_param]
+
             # If outputs are provided, add them. Also, if a non-slurm job uses this slurm job, force fetchData=true.
             if "outputs" in job:
                 for output in job["outputs"]:
@@ -210,9 +281,13 @@ def build_workflow(jobs):
                     output_names = [output["name"] for output in job["outputs"]]
                     if "fetchData" not in output_names:
                         task_args["parameters"].append({"name": "fetchData", "value": "true"})
+
+        # Merge input-derived args into any prebuilt arg set
         task_args = merge_arguments(task_args, input_args)
         if task_args:
             task["arguments"] = task_args
+
+        # Template wiring
         if job["type"] == "k8s":
             if "jobSpec" not in job:
                 sys.exit(f"k8s job '{job['name']}' requires a jobSpec field.")
@@ -221,8 +296,10 @@ def build_workflow(jobs):
             if tmpl_name in used_templates:
                 sys.exit(f"Duplicate template name detected: {tmpl_name}")
             used_templates.add(tmpl_name)
+
             tmpl_def = {"name": tmpl_name}
             job_spec = job["jobSpec"]
+            # Convenience: allow top-level image/command/args by wrapping into 'container'
             if "container" not in job_spec and any(k in job_spec for k in ["image", "command", "args"]):
                 container_spec = {k: job_spec[k] for k in ["image", "command", "args"] if k in job_spec}
                 new_job_spec = {"container": container_spec}
@@ -232,17 +309,23 @@ def build_workflow(jobs):
                 tmpl_def.update(new_job_spec)
             else:
                 tmpl_def.update(job_spec)
+
             additional_templates.append(tmpl_def)
+
         elif job["type"] == "slurm":
             if "jobSpec" in job:
                 sys.exit(f"Job '{job['name']}' of type slurm should not have a jobSpec.")
             task["templateRef"] = {"name": "slurm-template", "template": "slurm-submit-job"}
+
         else:
             sys.exit(f"Unsupported job type: {job['type']}")
+
         dag_tasks.append(task)
+
     workflow["spec"]["templates"][0]["dag"]["tasks"] = dag_tasks
     workflow["spec"]["templates"].extend(additional_templates)
     return workflow
+
 
 def load_scheduler(scheduler_path):
     """Dynamically load the scheduler module from a given file path."""
@@ -256,6 +339,7 @@ def load_scheduler(scheduler_path):
     except Exception as e:
         sys.exit(f"Error loading scheduler module: {e}")
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate an Argo Workflow YAML from a job description YAML file."
@@ -264,24 +348,26 @@ def main():
     parser.add_argument("output_yaml", help="Path to the output Argo Workflow YAML file")
     parser.add_argument("--scheduler", help="Path to a custom scheduler Python file", default=None)
     args = parser.parse_args()
+
     data = load_yaml(args.input_yaml)
     if "jobs" not in data or not isinstance(data["jobs"], list):
         sys.exit("The input YAML must have a top-level 'jobs' key containing a list of jobs.")
     jobs = data["jobs"]
+
     workflow = build_workflow(jobs)
-    
+
     # If a custom scheduler is provided, load it and apply its constraints.
     if args.scheduler:
         scheduler_module = load_scheduler(args.scheduler)
         workflow = scheduler_module.apply_constraints(workflow, jobs)
-    
+
     try:
         with open(args.output_yaml, "w") as f:
             yaml.dump(workflow, f, default_flow_style=False)
         print(f"Argo Workflow YAML generated and saved to {args.output_yaml}")
     except Exception as e:
         sys.exit(f"Error writing output YAML file: {e}")
-    
+
+
 if __name__ == "__main__":
     main()
-    
