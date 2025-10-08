@@ -51,7 +51,7 @@ jobs:
     type: slurm
     command: "cat mnist.log"
     inputs:
-      - from: model-training  
+      - from: model-training2  
 
   - name: print-message-from-file
     type: k8s
@@ -89,7 +89,7 @@ jobs:
 
   - name: model-training
     type: slurm
-    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
+    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
     inputs:
       - s3key: data
       - from: generate
@@ -102,7 +102,7 @@ jobs:
 
   - name: model-training2
     type: slurm
-    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
+    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
     inputs:
       - s3key: data
       - from: generate
@@ -115,7 +115,7 @@ jobs:
 
   - name: model-training3
     type: slurm
-    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
+    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
     inputs:
       - from: generate
         s3key: data

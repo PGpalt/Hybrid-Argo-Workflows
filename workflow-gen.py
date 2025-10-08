@@ -85,31 +85,25 @@ def process_job_inputs(job, job_type=None, job_types=None):
     to be merged into the DAG task's arguments.
 
     For non-slurm target jobs, each input must have a 'name' field.
-    
-    For slurm target jobs, the name is ignored:
-      - If a literal **s3key** is provided, the parameter name is forced to "s3artifact".
-        (This may appear only once across all inputs for a slurm job.)
-      - If only "from" is provided and the source job is slurm, both:
-            a parameter "slurmInput" with value "true" and
-            an artifact with name "input-artifact" referencing "{{tasks.<source_job>.outputs.artifacts.output-artifact}}"
-         are added.
-      - Otherwise, nothing is added.
+
+    For slurm target jobs:
+      - 'name' is ignored.
+      - If a literal **s3key** is provided, a parameter "s3artifact" is added with that value.
+      - If the same input also includes **path**, a parameter "inputfilepath" is added with that value.
+      - If only "from" is provided and the source job is slurm, add:
+            parameters: {"slurmInput": "true"}
+            artifacts:  {"input-artifact": "{{tasks.<source>.outputs.artifacts.output-artifact}}"}
+      - Using "value" is not allowed (use "s3key" instead).
+      - "path" is only valid when used together with "s3key".
 
     For non-slurm target jobs, if "from" is provided:
-      - If the referenced source job (looked up in job_types) is slurm, then regardless of any user‐specified type,
-        an artifact argument is generated using the key "output-artifact":
-            "{{tasks.<source_job>.outputs.artifacts.output-artifact}}"
-      - Otherwise, if the input type is "artifact", use an artifact reference:
-            "{{tasks.<source_job>.outputs.artifacts.<output_name>}}"
-        else use a parameter reference:
-            "{{tasks.<source_job>.outputs.parameters.<output_name>}}"
-      - Here, <output_name> defaults to "result" if not explicitly provided.
+      - If the referenced source job is slurm, generate an artifact argument referencing "output-artifact".
+      - Else, use artifact/parameter according to input type (default: parameter).
     """
     args = {}
     params = []
     artifacts = []
 
-    # Track if s3key has already been used for this slurm job
     s3key_used = False
 
     for inp in job.get("inputs", []):
@@ -120,6 +114,12 @@ def process_job_inputs(job, job_type=None, job_types=None):
 
             # Non-slurm literal allowed via 'value' (unchanged)
             if "value" in inp:
+                # 'path' is meaningless for k8s inputs; reject to avoid confusion
+                if "path" in inp:
+                    sys.exit(
+                        f"Job '{job.get('name', '?')}' (type k8s) uses 'path' in inputs; "
+                        "this is only valid for slurm inputs that use 's3key'."
+                    )
                 params.append({"name": inp["name"], "value": inp["value"]})
                 continue
 
@@ -129,6 +129,12 @@ def process_job_inputs(job, job_type=None, job_types=None):
                     f"Job '{job.get('name', '?')}' (type k8s) uses 's3key' in inputs; "
                     "this key is only valid for slurm jobs. Use 'value' instead for literals."
                 )
+            # Also block 'path' if it appears without s3key on k8s
+            if "path" in inp:
+                sys.exit(
+                    f"Job '{job.get('name', '?')}' (type k8s) uses 'path' in inputs; "
+                    "this is only valid for slurm inputs that use 's3key'."
+                )
 
         # Slurm target job: enforce 's3key' semantics and reject 'value'
         if job_type == "slurm":
@@ -137,6 +143,14 @@ def process_job_inputs(job, job_type=None, job_types=None):
                     f"Job '{job.get('name', '?')}' (type slurm) uses a 'value' literal; "
                     "please use 's3key' instead."
                 )
+
+            # If 'path' is specified without 's3key', reject (it's only meaningful with s3key)
+            if "path" in inp and "s3key" not in inp:
+                sys.exit(
+                    f"Job '{job.get('name', '?')}' (type slurm) specifies 'path' without 's3key'; "
+                    "'path' is only valid when used together with 's3key'."
+                )
+
             if "s3key" in inp:
                 if s3key_used:
                     sys.exit(
@@ -145,6 +159,10 @@ def process_job_inputs(job, job_type=None, job_types=None):
                     )
                 s3key_used = True
                 params.append({"name": "s3artifact", "value": inp["s3key"]})
+
+                if "path" in inp:
+                    params.append({"name": "inputFilePath", "value": inp["path"]})
+
                 continue
 
         # Handle "from" references
@@ -187,6 +205,7 @@ def process_job_inputs(job, job_type=None, job_types=None):
                     continue
         else:
             # No 'value'/'s3key' and no 'from' -> invalid input spec
+            # For slurm: also allow the case where we added s3key/path above (already continued)
             sys.exit(f"Input '{inp.get('name', 'unknown')}' must have either a 'from', 'value' (k8s), or 's3key' (slurm).")
 
     if params:

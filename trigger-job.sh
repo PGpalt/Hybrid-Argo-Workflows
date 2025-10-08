@@ -18,23 +18,29 @@ if [ "${SLURM_INPUT}" == "false" ]; then
   SUFFIX=${POD_NAME##*-}
   echo "Pod suffix: ${SUFFIX}"
 
+  if [ "${FILE_PATH}" == "NotSet" ]; then
+    FILE_PATH="slurm-job-${SUFFIX}"
+  fi
+
+  echo "FILE_PATH: ${FILE_PATH}"
+
   # Create a directory for the SLURM job on the remote host using the suffix
-  ssh ${SSH_OPTS} ${SSH_USER}@${SSH_HOST} "mkdir -p slurm-job-${SUFFIX}"
+  ssh ${SSH_OPTS} ${SSH_USER}@${SSH_HOST} "mkdir -p ${FILE_PATH}"
 
   if [ "${TRANSFER_DATA}" != "NotSet" ]; then
   # Transfer the files to the remote SLURM machine via SCP
-  scp ${SSH_OPTS} -r /tmp/* ${SSH_USER}@${SSH_HOST}:slurm-job-${SUFFIX}/
+    scp ${SSH_OPTS} -r /tmp/* ${SSH_USER}@${SSH_HOST}:${FILE_PATH}/
   fi
 else
   SUFFIX=$(cat /tmp/slurm-job-out-path.txt)
 fi
 
-mkdir -p ${FILE_PATH}
+mkdir -p ${FILE_PATH_OUT}
 # save the path that will be created for this job and will serve as an output to the workflow
-echo ${SUFFIX} > /${FILE_PATH}/slurm-job-out-path.txt
+echo ${SUFFIX} > /${FILE_PATH_OUT}/slurm-job-out-path.txt
 
 # Run the SLURM command on the remote machine and capture the output
-output=$(ssh ${SSH_OPTS} ${SSH_USER}@${SSH_HOST} "cd slurm-job-${SUFFIX} && ${COMMAND}")
+output=$(ssh ${SSH_OPTS} ${SSH_USER}@${SSH_HOST} "cd ${FILE_PATH} && ${COMMAND}")
 echo "Submission output: ${output}"
 
 # Extract the job ID (assumes the job id is the 4th word)
@@ -46,7 +52,7 @@ if [ "$(echo ${output} | awk '{print $1}')" = "Submitted" ]; then
   while ssh ${SSH_OPTS} ${SSH_USER}@${SSH_HOST} "squeue -j ${job_id}" | grep -q "${job_id}"; do
       echo "Job ${job_id} is still running. Waiting..."
       sleep 5
-  done        
+  done
   echo "Job ${job_id} has completed."
 fi
 
@@ -56,10 +62,6 @@ if [ "${FILE_NAME}" != "NotSet" ] && [ "${FETCH_DATA}" == "true" ]; then
     # FILE_NAME starts with '/', so use it directly on the remote host
     # and extract only the basename for the local destination.
     base_file=$(basename "${FILE_NAME}")
-    scp ${SSH_OPTS} ${SSH_USER}@${SSH_HOST}:"${FILE_NAME}" "${FILE_PATH}/${base_file}"
-  else
-    # Otherwise, use the default remote path (inside the slurm-job-${SUFFIX} directory)
-    scp ${SSH_OPTS} ${SSH_USER}@${SSH_HOST}:"slurm-job-${SUFFIX}/${FILE_NAME}" \
-      "${FILE_PATH}/${FILE_NAME}"
+    scp ${SSH_OPTS} ${SSH_USER}@${SSH_HOST}:"${FILE_NAME}" "${FILE_PATH_OUT}/${base_file}"
   fi
 fi

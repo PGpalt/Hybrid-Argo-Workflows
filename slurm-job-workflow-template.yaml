@@ -24,10 +24,12 @@ spec:
             default: "false"
           - name: fetchData
             default: "false"
+          - name: inputFilePath
+            default: "NotSet"
           - name: outputFileName
             default: "NotSet"
           - name: outputFilePath
-            default: "default"
+            default: "slurm-out"
         artifacts:
           - name: input-artifact
             path: /tmp/
@@ -79,8 +81,10 @@ spec:
             value: "{{inputs.parameters.s3artifact}}"
           - name: FILE_NAME
             value: "{{inputs.parameters.outputFileName}}"
-          - name: FILE_PATH
+          - name: FILE_PATH_OUT
             value: "{{inputs.parameters.outputFilePath}}"
+          - name: FILE_PATH
+            value: "{{inputs.parameters.inputFilePath}}"
           - name: SLURM_INPUT
             value: "{{inputs.parameters.slurmInput}}"
           - name: FETCH_DATA

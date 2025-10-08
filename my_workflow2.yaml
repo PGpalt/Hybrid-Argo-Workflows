@@ -13,7 +13,7 @@ spec:
           parameters:
           - name: command
             value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train-local.slurm
+              && sbatch katib-train.slurm
           - name: outputFileName
             value: mnist.log
           - name: outputFilePath
@@ -21,7 +21,7 @@ spec:
           - name: fetchData
             value: 'true'
           - name: s3artifact
-            value: data
+            value: Mnist-Dataset
         dependencies:
         - gen-epochs
         name: model-training

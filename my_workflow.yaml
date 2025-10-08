@@ -54,7 +54,7 @@ spec:
           parameters:
           - name: command
             value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train.slurm
+              && sbatch katib-train-local.slurm
           - name: outputFileName
             value: mnist.log
           - name: outputFilePath
@@ -64,8 +64,8 @@ spec:
           - name: s3artifact
             value: data
         dependencies:
-        - gen-epochs
         - generate
+        - gen-epochs
         name: model-training
         templateRef:
           name: slurm-template
@@ -74,7 +74,7 @@ spec:
           parameters:
           - name: command
             value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train.slurm
+              && sbatch katib-train-local.slurm
           - name: outputFileName
             value: mnist.log
           - name: outputFilePath
@@ -82,8 +82,8 @@ spec:
           - name: s3artifact
             value: data
         dependencies:
-        - gen-epochs
         - generate
+        - gen-epochs
         name: model-training2
         templateRef:
           name: slurm-template
@@ -92,7 +92,7 @@ spec:
           parameters:
           - name: command
             value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train.slurm
+              && sbatch katib-train-local.slurm
           - name: outputFileName
             value: mnist.log
           - name: outputFilePath
@@ -100,8 +100,8 @@ spec:
           - name: s3artifact
             value: data
         dependencies:
-        - gen-epochs
         - generate
+        - gen-epochs
         name: model-training3
         templateRef:
           name: slurm-template
