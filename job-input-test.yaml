@@ -58,8 +58,6 @@ jobs:
     jobSpec:
       inputs:
         artifacts:
-        # unpack the message input artifact
-        # and put it at /tmp/message
         - name: message
           path: /tmp/message
       container:
@@ -91,7 +89,7 @@ jobs:
     type: slurm
     command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
     inputs:
-      - s3key: data
+      - s3key: Mnist-Dataset
       - from: generate
       - from: gen-epochs
     outputs:
@@ -104,7 +102,7 @@ jobs:
     type: slurm
     command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
     inputs:
-      - s3key: data
+      - s3key: Mnist-Dataset
       - from: generate
       - from: gen-epochs
     outputs:
@@ -117,8 +115,8 @@ jobs:
     type: slurm
     command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
     inputs:
+      - s3key: Mnist-Dataset
       - from: generate
-        s3key: data
       - from: gen-epochs
     outputs:
       - name: outputFileName
