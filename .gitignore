@@ -1,5 +1,6 @@
 slurm-ssh-key.yaml
 ssh-creds.yaml
 ssh-creds-local.yaml
-example-mnist/GenomicData/sample_R1.fastq.gz
-example-mnist/GenomicData/sample_R2.fastq.gz
+Examples/GenomicDataAris/sample_R1.fastq.gz
+Examples/GenomicDataAris/sample_R2.fastq.gz
+__pycache__
