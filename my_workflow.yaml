@@ -21,7 +21,7 @@ spec:
         template: print-message-from-slurm-output-template
       - arguments:
           artifacts:
-          - from: '{{tasks.model-training.outputs.artifacts.output-artifact}}'
+          - from: '{{tasks.model-training2.outputs.artifacts.output-artifact}}'
             name: input-artifact
           parameters:
           - name: command
@@ -29,7 +29,7 @@ spec:
           - name: slurmInput
             value: 'true'
         dependencies:
-        - model-training
+        - model-training2
         name: print-slurm-message-from-slurm-output
         templateRef:
           name: slurm-template
@@ -62,10 +62,10 @@ spec:
           - name: fetchData
             value: 'true'
           - name: s3artifact
-            value: data
+            value: Mnist-Dataset
         dependencies:
-        - generate
         - gen-epochs
+        - generate
         name: model-training
         templateRef:
           name: slurm-template
@@ -80,10 +80,10 @@ spec:
           - name: outputFilePath
             value: slurm-out
           - name: s3artifact
-            value: data
+            value: Mnist-Dataset
         dependencies:
-        - generate
         - gen-epochs
+        - generate
         name: model-training2
         templateRef:
           name: slurm-template
@@ -98,10 +98,10 @@ spec:
           - name: outputFilePath
             value: slurm-out
           - name: s3artifact
-            value: data
+            value: Mnist-Dataset
         dependencies:
-        - generate
         - gen-epochs
+        - generate
         name: model-training3
         templateRef:
           name: slurm-template
