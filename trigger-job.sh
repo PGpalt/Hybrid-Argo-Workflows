@@ -33,6 +33,9 @@ if [ "${SLURM_INPUT}" == "false" ]; then
   fi
 else
   SUFFIX=$(cat /tmp/slurm-job-out-path.txt)
+  if [ "${FILE_PATH}" == "NotSet" ]; then
+    FILE_PATH="slurm-job-${SUFFIX}"
+  fi
 fi
 
 mkdir -p ${FILE_PATH_OUT}
@@ -63,5 +66,9 @@ if [ "${FILE_NAME}" != "NotSet" ] && [ "${FETCH_DATA}" == "true" ]; then
     # and extract only the basename for the local destination.
     base_file=$(basename "${FILE_NAME}")
     scp ${SSH_OPTS} ${SSH_USER}@${SSH_HOST}:"${FILE_NAME}" "${FILE_PATH_OUT}/${base_file}"
+  else
+    # Otherwise, use the default remote path (inside the slurm-job-${SUFFIX} directory)
+    scp ${SSH_OPTS} ${SSH_USER}@${SSH_HOST}:"${FILE_PATH}/${FILE_NAME}" \
+      "${FILE_PATH_OUT}/${FILE_NAME}"
   fi
 fi

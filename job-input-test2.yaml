@@ -20,8 +20,6 @@ jobs:
     outputs:
       - name: outputFileName
         value: mnist.log
-      - name: outputFilePath
-        value: slurm-out
 
   - name: print-message-from-slurm-output
     type: k8s

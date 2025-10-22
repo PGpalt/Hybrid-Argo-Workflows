@@ -51,7 +51,7 @@ jobs:
     type: slurm
     command: "cat mnist.log"
     inputs:
-      - from: model-training2  
+      - from: model-training
 
   - name: print-message-from-file
     type: k8s
@@ -95,8 +95,6 @@ jobs:
     outputs:
       - name: outputFileName
         value: mnist.log
-      - name: outputFilePath
-        value: slurm-out
 
   - name: model-training2
     type: slurm

@@ -21,7 +21,7 @@ spec:
         template: print-message-from-slurm-output-template
       - arguments:
           artifacts:
-          - from: '{{tasks.model-training2.outputs.artifacts.output-artifact}}'
+          - from: '{{tasks.model-training.outputs.artifacts.output-artifact}}'
             name: input-artifact
           parameters:
           - name: command
@@ -29,7 +29,7 @@ spec:
           - name: slurmInput
             value: 'true'
         dependencies:
-        - model-training2
+        - model-training
         name: print-slurm-message-from-slurm-output
         templateRef:
           name: slurm-template
@@ -57,15 +57,13 @@ spec:
               && sbatch katib-train-local.slurm
           - name: outputFileName
             value: mnist.log
-          - name: outputFilePath
-            value: slurm-out
           - name: fetchData
             value: 'true'
           - name: s3artifact
             value: Mnist-Dataset
         dependencies:
-        - gen-epochs
         - generate
+        - gen-epochs
         name: model-training
         templateRef:
           name: slurm-template
@@ -82,8 +80,8 @@ spec:
           - name: s3artifact
             value: Mnist-Dataset
         dependencies:
-        - gen-epochs
         - generate
+        - gen-epochs
         name: model-training2
         templateRef:
           name: slurm-template
@@ -100,8 +98,8 @@ spec:
           - name: s3artifact
             value: Mnist-Dataset
         dependencies:
-        - gen-epochs
         - generate
+        - gen-epochs
         name: model-training3
         templateRef:
           name: slurm-template
