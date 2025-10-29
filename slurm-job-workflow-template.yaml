@@ -1,5 +1,5 @@
 apiVersion: argoproj.io/v1alpha1
-kind: WorkflowTemplate
+kind: ClusterWorkflowTemplate
 metadata:
   name: slurm-template
 spec:
@@ -86,7 +86,7 @@ spec:
             value: "{{inputs.parameters.slurmInput}}"
           - name: FETCH_DATA
             value: "{{inputs.parameters.fetchData}}"
-        image: my-ssh-client:latest
+        image: docker.io/p4nikasgr/my-ssh-client:latest
         imagePullPolicy: IfNotPresent
         volumeMounts:
           - name: ssh-keys

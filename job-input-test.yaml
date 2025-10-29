@@ -90,7 +90,6 @@ jobs:
     command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
     inputs:
       - s3key: Mnist-Dataset
-      - from: generate
       - from: gen-epochs
     outputs:
       - name: outputFileName
@@ -101,23 +100,17 @@ jobs:
     command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
     inputs:
       - s3key: Mnist-Dataset
-      - from: generate
       - from: gen-epochs
     outputs:
       - name: outputFileName
         value: mnist.log
-      - name: outputFilePath
-        value: slurm-out
 
   - name: model-training3
     type: slurm
     command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
     inputs:
       - s3key: Mnist-Dataset
-      - from: generate
       - from: gen-epochs
     outputs:
       - name: outputFileName
         value: mnist.log
-      - name: outputFilePath
-        value: slurm-out

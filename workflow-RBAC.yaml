@@ -1,0 +1,21 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-cwt-read
+rules:
+- apiGroups: ["argoproj.io"]
+  resources: ["clusterworkflowtemplates"]
+  verbs: ["get","list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-cwt-read-argo-default.service-account-token
+subjects:
+- kind: ServiceAccount
+  name: default.service-account-token      # e.g., "default" or "argo"
+  namespace: <argo>   # the namespace you submit workflows in
+roleRef:
+  kind: ClusterRole
+  name: argo-cwt-read
+  apiGroup: rbac.authorization.k8s.io

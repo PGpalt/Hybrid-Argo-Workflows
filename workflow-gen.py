@@ -70,6 +70,95 @@ import sys
 import importlib.util
 
 
+# ------------------------- Scheduler API (new) -------------------------
+# This API is available to *optional* custom schedulers. If a scheduler
+# defines `apply(api)`, we will construct this object and pass it in.
+# If a scheduler sticks to the legacy
+# `apply_constraints(workflow, jobs)` signature, behavior is unchanged.
+#
+# NOTE: Merely defining this class introduces NO behavior change unless
+# a new-style scheduler calls its helpers (e.g., set_global_parallelism).
+class SchedulerAPI:
+    def __init__(self, workflow, jobs, options=None):
+        # Full workflow dictionary (mutable)
+        self.workflow = workflow
+        # Original job list from the input YAML
+        self.jobs = jobs
+        # Free-form options (not used by the compiler; schedulers may pass/use them)
+        self.options = options or {}
+
+        # Locate the DAG template produced by the compiler
+        self.dag_template = None
+        for t in self.workflow.get("spec", {}).get("templates", []):
+            if "dag" in t:
+                self.dag_template = t
+                break
+
+        # Flatten task list for convenience
+        self.tasks = []
+        if self.dag_template:
+            self.tasks = self.dag_template.get("dag", {}).get("tasks", [])
+
+        # Build shortcuts (type → tasks) by matching task.name to job.name
+        job_types = {j.get("name"): j.get("type") for j in jobs}
+        self.slurm_tasks = [t for t in self.tasks if job_types.get(t.get("name")) == "slurm"]
+        self.k8s_tasks   = [t for t in self.tasks if job_types.get(t.get("name")) == "k8s"]
+
+        # Simple dependency graph (by task name)
+        self.deps  = {t["name"]: set(t.get("dependencies", [])) for t in self.tasks}
+        self.rdeps = {t["name"]: set() for t in self.tasks}
+        for n, ds in self.deps.items():
+            for d in ds:
+                if d in self.rdeps:
+                    self.rdeps[d].add(n)
+
+        # Convenience alias for global parallelism (mirrors spec.parallelism)
+        gp = self.workflow.get("spec", {}).get("parallelism")
+        self.globals = {"Global-Parallelism": gp}
+
+    # Helpers ------------------------------------------------------------
+
+    def set_global_parallelism(self, n: int):
+        """Set spec.parallelism and mirror it into an annotation + alias.
+        (No effect unless a new-style scheduler calls this.)"""
+        if not isinstance(n, int) or n < 1:
+            raise ValueError("global parallelism must be a positive integer")
+        self.workflow.setdefault("spec", {})["parallelism"] = n
+        self.globals["Global-Parallelism"] = n
+        md = self.workflow.setdefault("metadata", {})
+        ann = md.setdefault("annotations", {})
+        ann["scheduler/global-parallelism"] = str(n)
+
+    def get_task(self, name: str):
+        for t in self.tasks:
+            if t.get("name") == name:
+                return t
+        return None
+
+    def add_dependency(self, task_name: str, depends_on: str):
+        """Ensure `task_name` depends on `depends_on` (idempotent)."""
+        t = self.get_task(task_name)
+        if not t:
+            return
+        deps = set(t.get("dependencies", []))
+        if depends_on not in deps:
+            deps.add(depends_on)
+            t["dependencies"] = sorted(deps)
+        # keep local graphs in sync
+        self.deps.setdefault(task_name, set()).add(depends_on)
+        self.rdeps.setdefault(depends_on, set()).add(task_name)
+
+    def chain(self, task_names):
+        """Serialize the provided list of task names into a chain."""
+        for i in range(1, len(task_names)):
+            self.add_dependency(task_names[i], task_names[i-1])
+
+    def select(self, predicate):
+        """Return tasks for which predicate(task) is True."""
+        return [t for t in self.tasks if predicate(t)]
+# ----------------------------------------------------------------------
+
+
 def load_yaml(file_path):
     """Load YAML file from the given path."""
     try:
@@ -334,7 +423,11 @@ def build_workflow(jobs):
         elif job["type"] == "slurm":
             if "jobSpec" in job:
                 sys.exit(f"Job '{job['name']}' of type slurm should not have a jobSpec.")
-            task["templateRef"] = {"name": "slurm-template", "template": "slurm-submit-job"}
+            task["templateRef"] = {
+                "name": "slurm-template",
+                "template": "slurm-submit-job",
+                "clusterScope": True,
+            }
 
         else:
             sys.exit(f"Unsupported job type: {job['type']}")
@@ -347,13 +440,22 @@ def build_workflow(jobs):
 
 
 def load_scheduler(scheduler_path):
-    """Dynamically load the scheduler module from a given file path."""
+    """Dynamically load the scheduler module from a given file path.
+
+    Supports BOTH:
+      - Legacy: apply_constraints(workflow, jobs)
+      - New:    apply(api)  # where `api` is an instance of SchedulerAPI
+    """
     try:
         spec = importlib.util.spec_from_file_location("scheduler_module", scheduler_path)
         scheduler_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(scheduler_module)
-        if not hasattr(scheduler_module, "apply_constraints"):
-            sys.exit("The scheduler module must define an 'apply_constraints(workflow, jobs)' function.")
+
+        if not (hasattr(scheduler_module, "apply_constraints") or hasattr(scheduler_module, "apply")):
+            sys.exit(
+                "The scheduler module must define either "
+                "'apply_constraints(workflow, jobs)' (legacy) or 'apply(api)' (new)."
+            )
         return scheduler_module
     except Exception as e:
         sys.exit(f"Error loading scheduler module: {e}")
@@ -375,10 +477,22 @@ def main():
 
     workflow = build_workflow(jobs)
 
-    # If a custom scheduler is provided, load it and apply its constraints.
+    # If a custom scheduler is provided, load it and apply it.
+    # Behavior is identical to before for legacy schedulers.
     if args.scheduler:
         scheduler_module = load_scheduler(args.scheduler)
-        workflow = scheduler_module.apply_constraints(workflow, jobs)
+
+        # New-style: apply(api)
+        if hasattr(scheduler_module, "apply"):
+            api = SchedulerAPI(workflow, jobs, options=None)  # options hook kept None to preserve exact old behavior
+            result = scheduler_module.apply(api)
+            # allow either in-place mutation or returning a new workflow
+            if result is not None:
+                workflow = result
+
+        # Legacy: apply_constraints(workflow, jobs)
+        elif hasattr(scheduler_module, "apply_constraints"):
+            workflow = scheduler_module.apply_constraints(workflow, jobs)
 
     try:
         with open(args.output_yaml, "w") as f:

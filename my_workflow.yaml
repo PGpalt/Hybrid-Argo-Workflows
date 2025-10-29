@@ -1,9 +1,12 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
+  annotations:
+    scheduler/global-parallelism: '5'
   generateName: hybrid-workflow-
 spec:
   entrypoint: hybrid-workflow
+  parallelism: 5
   templates:
   - dag:
       tasks:
@@ -32,6 +35,7 @@ spec:
         - model-training
         name: print-slurm-message-from-slurm-output
         templateRef:
+          clusterScope: true
           name: slurm-template
           template: slurm-submit-job
       - arguments:
@@ -62,10 +66,10 @@ spec:
           - name: s3artifact
             value: Mnist-Dataset
         dependencies:
-        - generate
         - gen-epochs
         name: model-training
         templateRef:
+          clusterScope: true
           name: slurm-template
           template: slurm-submit-job
       - arguments:
@@ -75,15 +79,14 @@ spec:
               && sbatch katib-train-local.slurm
           - name: outputFileName
             value: mnist.log
-          - name: outputFilePath
-            value: slurm-out
           - name: s3artifact
             value: Mnist-Dataset
         dependencies:
-        - generate
         - gen-epochs
+        - print-slurm-message-from-slurm-output
         name: model-training2
         templateRef:
+          clusterScope: true
           name: slurm-template
           template: slurm-submit-job
       - arguments:
@@ -93,15 +96,14 @@ spec:
               && sbatch katib-train-local.slurm
           - name: outputFileName
             value: mnist.log
-          - name: outputFilePath
-            value: slurm-out
           - name: s3artifact
             value: Mnist-Dataset
         dependencies:
-        - generate
         - gen-epochs
+        - model-training
         name: model-training3
         templateRef:
+          clusterScope: true
           name: slurm-template
           template: slurm-submit-job
     name: hybrid-workflow
