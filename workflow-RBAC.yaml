@@ -14,7 +14,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: default.service-account-token      # e.g., "default" or "argo"
-  namespace: <argo>   # the namespace you submit workflows in
+  namespace: argo   # the namespace you submit workflows in
 roleRef:
   kind: ClusterRole
   name: argo-cwt-read
