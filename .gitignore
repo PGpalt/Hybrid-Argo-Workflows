@@ -3,6 +3,4 @@ ssh-creds.yaml
 ssh-creds-local.yaml
 Examples/GenomicDataAris/sample_R1.fastq.gz
 Examples/GenomicDataAris/sample_R2.fastq.gz
-workflow-resume-RBAC.yaml
-argo-taskresults-rbac.yaml
 __pycache__
