@@ -9,8 +9,6 @@ import socket
 import subprocess
 import time
 import re
-
-import hypertune
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -190,17 +188,6 @@ def test(args, model, device, test_loader, epoch, hpt, test_sampler=None):
                 aggregated_loss
             )
         )
-        if args.logger == "hypertune":
-            hpt.report_hyperparameter_tuning_metric(
-                hyperparameter_metric_tag="loss",
-                metric_value=aggregated_loss,
-                global_step=epoch,
-            )
-            hpt.report_hyperparameter_tuning_metric(
-                hyperparameter_metric_tag="accuracy",
-                metric_value=aggregated_accuracy,
-                global_step=epoch,
-            )
 
 
 def should_distribute():
@@ -277,7 +264,7 @@ def main():
     parser.add_argument(
         "--logger",
         type=str,
-        choices=["standard", "hypertune"],
+        choices=["standard"],
         help="Logger",
         default="standard",
     )
@@ -299,7 +286,7 @@ def main():
     args = parser.parse_args()
 
     # Set up logging: if log_path is empty, print to StdOut.
-    if args.log_path == "" or args.logger == "hypertune":
+    if args.log_path == "":
         logging.basicConfig(
             format="%(asctime)s %(levelname)-8s %(message)s",
             datefmt="%Y-%m-%dT%H:%M:%SZ",
@@ -312,12 +299,6 @@ def main():
             level=logging.DEBUG,
             filename=args.log_path,
         )
-
-    if args.logger == "hypertune" and args.log_path != "":
-        os.environ["CLOUD_ML_HP_METRIC_FILE"] = args.log_path
-
-    # For JSON logging
-    hpt = hypertune.HyperTune()
 
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     print("CUDA AVAILABILITY: ", torch.cuda.is_available())

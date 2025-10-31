@@ -16,15 +16,16 @@ spec:
           - name: fetchData
             value: true
           - name: outputFileName
-            value: Genomic-QC-Alignment.out
-          - name: outputFilePath
-            value: slurm-out
+            value: /shared/genomic-alignment/Genomic-QC-Alignment.out
           - name: s3artifact
             value: GenomicDataAris
+          - name: inputFilePath
+            value: /shared/genomic-alignment
         dependencies:
         - fastp-trimming
         name: Alignment
         templateRef:
+          clusterScope: true
           name: slurm-template
           template: slurm-submit-job
     name: hybrid-workflow

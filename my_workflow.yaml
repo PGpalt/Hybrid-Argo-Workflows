@@ -1,12 +1,9 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
-  annotations:
-    scheduler/global-parallelism: '5'
   generateName: hybrid-workflow-
 spec:
   entrypoint: hybrid-workflow
-  parallelism: 5
   templates:
   - dag:
       tasks:
@@ -83,7 +80,6 @@ spec:
             value: Mnist-Dataset
         dependencies:
         - gen-epochs
-        - print-slurm-message-from-slurm-output
         name: model-training2
         templateRef:
           clusterScope: true
@@ -100,7 +96,6 @@ spec:
             value: Mnist-Dataset
         dependencies:
         - gen-epochs
-        - model-training
         name: model-training3
         templateRef:
           clusterScope: true

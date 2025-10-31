@@ -24,6 +24,7 @@ spec:
         - gen-epochs
         name: model-training
         templateRef:
+          clusterScope: true
           name: slurm-template
           template: slurm-submit-job
       - arguments:
