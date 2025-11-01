@@ -6,8 +6,6 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --nodes=1     # Number of nodes requested
 #SBATCH --time=00:20:00
-#SBATCH --partition=compute    # Partition
-#SBATCH --account=pr016051_thin    # Replace with your system project
 
 # Load ARIS modules
 module purge

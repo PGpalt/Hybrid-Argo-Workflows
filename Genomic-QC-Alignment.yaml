@@ -35,8 +35,8 @@ jobs:
     type: slurm
     command: "sbatch QC-Alignment.slurm"
     inputs:
-      - from: fastp-trimming
       - s3key: GenomicDataAris
+      - from: fastp-trimming
     outputs:
       - name: fetchData
         value: true
