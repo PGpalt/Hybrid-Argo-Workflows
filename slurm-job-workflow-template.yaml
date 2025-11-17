@@ -8,12 +8,6 @@ spec:
     - name: slurm-submit-job
       inputs:
         parameters:
-          - name: sshHost
-            default: host.minikube.internal
-          - name: sshUser
-            default: root
-          - name: sshPort
-            default: "2222"
           - name: command
           - name: s3artifact
             default: "NotSet"
