@@ -151,7 +151,7 @@ def train(args, model, device, train_loader, optimizer, epoch, train_sampler=Non
             # logging.info("{{metricName: loss, metricValue: {:.4f}}}".format(loss.item()))
 
 
-def test(args, model, device, test_loader, epoch, hpt, test_sampler=None):
+def test(args, model, device, test_loader, epoch, test_sampler=None):
     model.eval()
     total_loss = 0.0
     total_correct = 0
@@ -396,7 +396,7 @@ def main():
 
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch, train_sampler)
-        test(args, model, device, test_loader, epoch, hpt)
+        test(args, model, device, test_loader, epoch)
 
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
