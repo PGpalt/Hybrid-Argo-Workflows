@@ -12,7 +12,7 @@ spec:
       - arguments:
           parameters:
           - name: command
-            value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
+            value: export LR=${trialParameters.learningRate} && export epochs={{tasks.gen-epochs.outputs.result}}
               && sbatch katib-train-local.slurm
           - name: outputFileName
             value: mnist.log
