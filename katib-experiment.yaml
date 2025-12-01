@@ -94,12 +94,12 @@ spec:
             image: python:alpine3.6
             source: 'import random
 
-              print(60000//random.randint(10000, 40000))
+              print(60000//random.randint(40000, 40000))
 
               '
         - container:
             args:
-            - cat /tmp/logs/mnist.log
+            - sleep 5;cat /tmp/logs/mnist.log;cp /tmp/logs/mnist.log /katib/mnist.log
             command:
             - sh
             - -c
