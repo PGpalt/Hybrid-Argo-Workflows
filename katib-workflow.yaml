@@ -43,7 +43,7 @@ spec:
       image: python:alpine3.6
       source: 'import random
 
-        print(60000//random.randint(40000, 40000))
+        print(60000//random.randint(20000, 40000))
 
         '
   - container:

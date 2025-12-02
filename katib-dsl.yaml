@@ -8,7 +8,7 @@ jobs:
           - python
         source: |
           import random
-          print(60000//random.randint(40000, 40000))
+          print(60000//random.randint(10000, 40000))
 
   - name: model-training
     type: slurm
