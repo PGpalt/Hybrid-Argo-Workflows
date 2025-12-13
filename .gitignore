@@ -4,3 +4,4 @@ ssh-creds-local.yaml
 Examples/GenomicData/sample_R1.fastq.gz
 Examples/GenomicData/sample_R2.fastq.gz
 __pycache__
+.vscode

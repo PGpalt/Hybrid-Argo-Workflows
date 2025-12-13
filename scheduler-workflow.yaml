@@ -1,0 +1,174 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  annotations:
+    scheduler/global-parallelism: '5'
+  generateName: hybrid-workflow-
+spec:
+  entrypoint: hybrid-workflow
+  parallelism: 5
+  templates:
+  - dag:
+      tasks:
+      - name: gen-epochs
+        template: gen-epochs-template
+      - name: generate
+        template: generate-template
+      - arguments:
+          artifacts:
+          - from: '{{tasks.model-training.outputs.artifacts.output-artifact}}'
+            name: message
+        dependencies:
+        - model-training
+        name: print-message-from-slurm-output
+        template: print-message-from-slurm-output-template
+      - arguments:
+          artifacts:
+          - from: '{{tasks.model-training.outputs.artifacts.output-artifact}}'
+            name: input-artifact
+          parameters:
+          - name: command
+            value: cat mnist.log
+          - name: slurmInput
+            value: 'true'
+        dependencies:
+        - model-training
+        name: print-slurm-message-from-slurm-output
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          artifacts:
+          - from: '{{tasks.generate.outputs.artifacts.file}}'
+            name: message
+        dependencies:
+        - generate
+        name: print-message-from-file
+        template: print-message-from-file-template
+      - arguments:
+          parameters:
+          - name: template-param-1
+            value: '{{tasks.generate.outputs.parameters.output-param-1}}'
+        dependencies:
+        - generate
+        name: print-message-from-input
+        template: print-message-from-input-template
+      - arguments:
+          parameters:
+          - name: command
+            value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
+              && sbatch katib-train-local.slurm
+          - name: outputFileName
+            value: mnist.log
+          - name: fetchData
+            value: 'true'
+          - name: s3artifact
+            value: Mnist-Dataset
+        dependencies:
+        - gen-epochs
+        name: model-training
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          parameters:
+          - name: command
+            value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
+              && sbatch katib-train-local.slurm
+          - name: outputFileName
+            value: mnist.log
+          - name: s3artifact
+            value: Mnist-Dataset
+        dependencies:
+        - gen-epochs
+        - print-slurm-message-from-slurm-output
+        name: model-training2
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          parameters:
+          - name: command
+            value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
+              && sbatch katib-train-local.slurm
+          - name: outputFileName
+            value: mnist.log
+          - name: s3artifact
+            value: Mnist-Dataset
+        dependencies:
+        - gen-epochs
+        - model-training
+        name: model-training3
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+    name: hybrid-workflow
+  - name: gen-epochs-template
+    script:
+      command:
+      - python
+      image: python:alpine3.6
+      source: 'import random
+
+        print(60000//random.randint(40000, 40000))
+
+        '
+  - container:
+      args:
+      - echo hello world | tee /tmp/file.txt
+      command:
+      - sh
+      - -c
+      image: busybox
+    name: generate-template
+    outputs:
+      artifacts:
+      - archive:
+          none: {}
+        name: file
+        path: /tmp/file.txt
+        s3:
+          key: data/my-dir/my-file
+      parameters:
+      - name: output-param-1
+        valueFrom:
+          path: /tmp/file.txt
+  - container:
+      args:
+      - cat /tmp/message/mnist.log
+      command:
+      - sh
+      - -c
+      image: alpine:latest
+    inputs:
+      artifacts:
+      - name: message
+        path: /tmp/message
+    name: print-message-from-slurm-output-template
+  - container:
+      args:
+      - cat /tmp/message
+      command:
+      - sh
+      - -c
+      image: alpine:latest
+    inputs:
+      artifacts:
+      - name: message
+        path: /tmp/message
+    name: print-message-from-file-template
+  - inputs:
+      parameters:
+      - name: template-param-1
+    name: print-message-from-input-template
+    script:
+      command:
+      - /bin/sh
+      image: alpine
+      source: 'echo "{{inputs.parameters.template-param-1}}"
+
+        '
