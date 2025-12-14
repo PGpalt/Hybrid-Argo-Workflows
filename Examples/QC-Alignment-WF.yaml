@@ -12,7 +12,7 @@ spec:
       - arguments:
           parameters:
           - name: command
-            value: sbatch QC-Alignment.slurm
+            value: sbatch QC-Alignment-local.slurm
           - name: fetchData
             value: true
           - name: outputFileName
