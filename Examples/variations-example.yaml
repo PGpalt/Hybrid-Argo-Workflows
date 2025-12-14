@@ -1,0 +1,96 @@
+jobs:
+  - name: gen-epochs
+    type: k8s
+    jobSpec:
+      script:
+        image: python:alpine3.6
+        command:
+          - python
+        source: |
+          import random
+          print(60000//random.randint(40000, 40000))
+
+  - name: generate
+    type: k8s
+    jobSpec:
+      container:
+        image: busybox
+        command: [sh, -c]
+        args: ["echo hello world | tee /tmp/file.txt"]
+      outputs:
+        parameters:
+          - name: output-param-1
+            valueFrom:
+              path: /tmp/file.txt
+        artifacts:
+          - name: file
+            path: /tmp/file.txt
+            s3:
+              key: data/my-dir/my-file
+            archive:
+              none: { }  
+
+  - name: print-message-from-slurm-output
+    type: k8s
+    jobSpec:
+      inputs:
+        artifacts:
+        # unpack the message input artifact
+        # and put it at /tmp/message
+        - name: message
+          path: /tmp/message
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["cat /tmp/message/mnist.log"] 
+    inputs:
+      - name: message
+        from: model-training  
+
+  - name: print-slurm-message-from-slurm-output
+    type: slurm
+    command: "cat mnist.log"
+    inputs:
+      - from: model-training
+
+  - name: print-message-from-file
+    type: k8s
+    jobSpec:
+      inputs:
+        artifacts:
+        - name: message
+          path: /tmp/message
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["cat /tmp/message"] 
+    inputs:
+      - name: message
+        from: generate.file   
+        type: artifact          
+
+  - name: print-message-from-input
+    type: k8s
+    jobSpec:
+      inputs:
+        parameters:
+          - name: template-param-1
+      script:
+        image: alpine
+        command: [/bin/sh]
+        source: |
+            echo "{{inputs.parameters.template-param-1}}"
+    inputs:
+      - name: template-param-1
+        from: generate.output-param-1
+        type: parameter
+
+  - name: model-training
+    type: slurm
+    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train-local.slurm"
+    inputs:
+      - s3key: Mnist-Dataset
+      - from: gen-epochs
+    outputs:
+      - name: outputFileName
+        value: mnist.log
