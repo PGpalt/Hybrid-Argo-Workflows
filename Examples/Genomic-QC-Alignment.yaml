@@ -31,9 +31,9 @@ jobs:
             archive:
               none: { }  
 
-  - name: Alignment
+  - name: Alignment1
     type: slurm
-    command: "sbatch QC-Alignment-local.slurm"
+    command: "export DATAPATH='E-Coli' && sbatch QC-Alignment-local.slurm"
     inputs:
       - s3key: GenomicDataAris
       - from: fastp-trimming
@@ -41,4 +41,28 @@ jobs:
       - name: fetchData
         value: true
       - name: outputFileName
-        value: Genomic-QC-Alignment.out
+        value: alignment_summary.txt
+
+  - name: Alignment2
+    type: slurm
+    command: "export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-local.slurm"
+    inputs:
+      - s3key: GenomicDataAris
+      - from: fastp-trimming
+    outputs:
+      - name: fetchData
+        value: true
+      - name: outputFileName
+        value: alignment_summary.txt
+
+  - name: Alignment3
+    type: slurm
+    command: "export DATAPATH='Shigella' && sbatch QC-Alignment-local.slurm"
+    inputs:
+      - s3key: GenomicDataAris
+      - from: fastp-trimming
+    outputs:
+      - name: fetchData
+        value: true
+      - name: outputFileName
+        value: alignment_summary.txt

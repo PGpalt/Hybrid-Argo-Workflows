@@ -3,7 +3,7 @@
 #SBATCH --job-name=Genomic-QC-Alignment
 #SBATCH --output=Genomic-QC-Alignment.out
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=2
 #SBATCH --nodes=1     # Number of nodes requested
 #SBATCH --time=00:20:00
 
@@ -15,7 +15,7 @@ module load samtools/1.9
 
 # --- CONFIG: all files in $PWD ----------------------------------------------
 
-REF=./genome.fa
+REF="./${DATAPATH}/genome.fa"
 R1=./sample_R1.trimmed.fastq.gz
 R2=./sample_R2.trimmed.fastq.gz
 OUT_DIR=.
@@ -37,3 +37,4 @@ bowtie2 \
 samtools view -@ 4 -bS "${OUT_DIR}/${base}.sam" \
   | samtools sort -@ 4 -o "${OUT_DIR}/${base}.sorted.bam"
 samtools index "${OUT_DIR}/${base}.sorted.bam"
+samtools flagstat "${OUT_DIR}/${base}.sorted.bam" > alignment_summary.txt

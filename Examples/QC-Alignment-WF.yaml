@@ -12,16 +12,50 @@ spec:
       - arguments:
           parameters:
           - name: command
-            value: sbatch QC-Alignment-local.slurm
+            value: export DATAPATH='E-Coli' && sbatch QC-Alignment-local.slurm
           - name: fetchData
             value: true
           - name: outputFileName
-            value: Genomic-QC-Alignment.out
+            value: alignment_summary.txt
           - name: s3artifact
             value: GenomicDataAris
         dependencies:
         - fastp-trimming
-        name: Alignment
+        name: Alignment1
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          parameters:
+          - name: command
+            value: export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-local.slurm
+          - name: fetchData
+            value: true
+          - name: outputFileName
+            value: alignment_summary.txt
+          - name: s3artifact
+            value: GenomicDataAris
+        dependencies:
+        - fastp-trimming
+        name: Alignment2
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          parameters:
+          - name: command
+            value: export DATAPATH='Shigella' && sbatch QC-Alignment-local.slurm
+          - name: fetchData
+            value: true
+          - name: outputFileName
+            value: alignment_summary.txt
+          - name: s3artifact
+            value: GenomicDataAris
+        dependencies:
+        - fastp-trimming
+        name: Alignment3
         templateRef:
           clusterScope: true
           name: slurm-template
