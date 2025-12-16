@@ -14,7 +14,6 @@ Each job must include:
                  If given as "jobName.outputName", then that output name is used.
                  If given as "jobName", then "result" is used as the default output name.
         - type: (optional) either "parameter" (default) or "artifact".
-        - value: (optional; **k8s only**) a literal value (for external inputs).
         - s3key: (optional; **slurm only**) a literal S3 key to pass to the slurm template.
 
 For slurm jobs (type "slurm"), the job must define:
@@ -29,8 +28,6 @@ INPUT MAPPING (important behavioral points):
           - Otherwise:
               - If input type is "artifact", reference the source artifact by name.
               - Else, use a parameter reference.
-      - If the input is a literal, use "value" (unchanged behavior).
-
   • For slurm target jobs:
       - The 'name' field is ignored.
       - If an input uses a literal S3 key, specify it as **s3key** (not "value"). This is passed as parameter "s3artifact".
@@ -40,11 +37,7 @@ INPUT MAPPING (important behavioral points):
             * add artifact named "input-artifact" from the source's "output-artifact"
         (Multiple such inputs are allowed; if multiple artifacts share the same name,
          the last one wins due to Argo argument name uniqueness.)
-      - Using "value" on slurm jobs is not allowed (use "s3key" instead).
 
-OUTPUTS:
-  • For both k8s and slurm jobs, the job's **outputs** section continues to use **value**.
-    (Only inputs for slurm jobs use **s3key**.)
 
 Additionally, for slurm jobs if an outputs section is defined (e.g. outputFileName and outputFilePath),
 those values are added as parameters so that the slurm template receives them.
@@ -182,7 +175,6 @@ def process_job_inputs(job, job_type=None, job_types=None):
       - If only "from" is provided and the source job is slurm, add:
             parameters: {"slurmInput": "true"}
             artifacts:  {"input-artifact": "{{tasks.<source>.outputs.artifacts.output-artifact}}"}
-      - Using "value" is not allowed (use "s3key" instead).
       - "path" is only valid when used together with "s3key".
 
     For non-slurm target jobs, if "from" is provided:

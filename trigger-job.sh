@@ -72,8 +72,3 @@ if [ "${FILE_NAME}" != "NotSet" ] && [ "${FETCH_DATA}" == "true" ]; then
       "${FILE_PATH_OUT}/${FILE_NAME}"
   fi
 fi
-
-
-if [ "${SLURM_INPUT}" == "false" ] && [ "${FETCH_DATA}" == "false" ]; then
-  echo 
-fi  
