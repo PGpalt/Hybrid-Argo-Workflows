@@ -30,39 +30,43 @@ jobs:
               key: GenomicDataAris
             archive:
               none: { }  
+  
+  - name: ARIS-Input-Stage
+    type: slurm
+    command: "ls"
+    inputs:
+      - s3key: GenomicDataAris
+      - from: fastp-trimming
 
   - name: Alignment1
     type: slurm
     command: "export DATAPATH='E-Coli' && sbatch QC-Alignment-local.slurm"
     inputs:
-      - s3key: GenomicDataAris
-      - from: fastp-trimming
+      - from: ARIS-Input-Stage
     outputs:
       - name: fetchData
         value: true
       - name: outputFileName
-        value: alignment_summary.txt
+        value: E-Coli/alignment_summary.txt
 
   - name: Alignment2
     type: slurm
     command: "export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-local.slurm"
     inputs:
-      - s3key: GenomicDataAris
-      - from: fastp-trimming
+      - from: ARIS-Input-Stage
     outputs:
       - name: fetchData
         value: true
       - name: outputFileName
-        value: alignment_summary.txt
+        value: Salmonella-Enterica/alignment_summary.txt
 
   - name: Alignment3
     type: slurm
     command: "export DATAPATH='Shigella' && sbatch QC-Alignment-local.slurm"
     inputs:
-      - s3key: GenomicDataAris
-      - from: fastp-trimming
+      - from: ARIS-Input-Stage
     outputs:
       - name: fetchData
         value: true
       - name: outputFileName
-        value: alignment_summary.txt
+        value: Shigella/alignment_summary.txt

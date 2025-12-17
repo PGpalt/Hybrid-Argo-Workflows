@@ -22,8 +22,6 @@ if [ "${SLURM_INPUT}" == "false" ]; then
     FILE_PATH="slurm-job-${SUFFIX}"
   fi
 
-  echo "FILE_PATH: ${FILE_PATH}"
-
   # Create a directory for the SLURM job on the remote host using the suffix
   ssh ${SSH_OPTS} ${SSH_USER}@${SSH_HOST} "mkdir -p ${FILE_PATH}"
 
@@ -41,7 +39,7 @@ fi
 mkdir -p ${FILE_PATH_OUT}
 # save the path that will be created for this job and will serve as an output to the workflow
 echo ${SUFFIX} > /${FILE_PATH_OUT}/slurm-job-out-path.txt
-
+echo "FILE_PATH: ${FILE_PATH}"
 # Run the SLURM command on the remote machine and capture the output
 output=$(ssh ${SSH_OPTS} ${SSH_USER}@${SSH_HOST} "cd ${FILE_PATH} && ${COMMAND}")
 echo "Submission output: ${output}"
@@ -67,8 +65,9 @@ if [ "${FILE_NAME}" != "NotSet" ] && [ "${FETCH_DATA}" == "true" ]; then
     base_file=$(basename "${FILE_NAME}")
     scp ${SSH_OPTS} ${SSH_USER}@${SSH_HOST}:"${FILE_NAME}" "${FILE_PATH_OUT}/${base_file}"
   else
+    base_file=$(basename "${FILE_NAME}")
     # Otherwise, use the default remote path (inside the slurm-job-${SUFFIX} directory)
     scp ${SSH_OPTS} ${SSH_USER}@${SSH_HOST}:"${FILE_PATH}/${FILE_NAME}" \
-      "${FILE_PATH_OUT}/${FILE_NAME}"
+      "${FILE_PATH_OUT}/${base_file}"
   fi
 fi

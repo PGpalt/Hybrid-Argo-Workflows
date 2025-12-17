@@ -12,49 +12,71 @@ spec:
       - arguments:
           parameters:
           - name: command
-            value: export DATAPATH='E-Coli' && sbatch QC-Alignment-local.slurm
-          - name: fetchData
-            value: true
-          - name: outputFileName
-            value: alignment_summary.txt
+            value: ls
           - name: s3artifact
             value: GenomicDataAris
         dependencies:
         - fastp-trimming
+        name: ARIS-Input-Stage
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          artifacts:
+          - from: '{{tasks.ARIS-Input-Stage.outputs.artifacts.output-artifact}}'
+            name: input-artifact
+          parameters:
+          - name: command
+            value: export DATAPATH='E-Coli' && sbatch QC-Alignment-local.slurm
+          - name: fetchData
+            value: true
+          - name: outputFileName
+            value: E-Coli/alignment_summary.txt
+          - name: slurmInput
+            value: 'true'
+        dependencies:
+        - ARIS-Input-Stage
         name: Alignment1
         templateRef:
           clusterScope: true
           name: slurm-template
           template: slurm-submit-job
       - arguments:
+          artifacts:
+          - from: '{{tasks.ARIS-Input-Stage.outputs.artifacts.output-artifact}}'
+            name: input-artifact
           parameters:
           - name: command
             value: export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-local.slurm
           - name: fetchData
             value: true
           - name: outputFileName
-            value: alignment_summary.txt
-          - name: s3artifact
-            value: GenomicDataAris
+            value: Salmonella-Enterica/alignment_summary.txt
+          - name: slurmInput
+            value: 'true'
         dependencies:
-        - fastp-trimming
+        - ARIS-Input-Stage
         name: Alignment2
         templateRef:
           clusterScope: true
           name: slurm-template
           template: slurm-submit-job
       - arguments:
+          artifacts:
+          - from: '{{tasks.ARIS-Input-Stage.outputs.artifacts.output-artifact}}'
+            name: input-artifact
           parameters:
           - name: command
             value: export DATAPATH='Shigella' && sbatch QC-Alignment-local.slurm
           - name: fetchData
             value: true
           - name: outputFileName
-            value: alignment_summary.txt
-          - name: s3artifact
-            value: GenomicDataAris
+            value: Shigella/alignment_summary.txt
+          - name: slurmInput
+            value: 'true'
         dependencies:
-        - fastp-trimming
+        - ARIS-Input-Stage
         name: Alignment3
         templateRef:
           clusterScope: true
