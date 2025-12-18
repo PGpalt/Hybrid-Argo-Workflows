@@ -20,7 +20,7 @@ module load samtools/1.9
 REF=./genome.fa
 R1=./sample_R1.trimmed.fastq.gz
 R2=./sample_R2.trimmed.fastq.gz
-OUT_DIR=.
+OUT_DIR="${DATAPATH}"
 
 base=$(basename "$REF" .fa)
 
@@ -39,3 +39,4 @@ bowtie2 \
 samtools view -@ 4 -bS "${OUT_DIR}/${base}.sam" \
   | samtools sort -@ 4 -o "${OUT_DIR}/${base}.sorted.bam"
 samtools index "${OUT_DIR}/${base}.sorted.bam"
+samtools flagstat "${OUT_DIR}/${base}.sorted.bam" > "${OUT_DIR}/alignment_summary.txt"
