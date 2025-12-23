@@ -16,7 +16,7 @@ spec:
           parameters:
           - name: command
             value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train-local.slurm
+              && sbatch katib-train.slurm
           - name: outputFileName
             value: mnist.log
           - name: s3artifact
@@ -32,7 +32,7 @@ spec:
           parameters:
           - name: command
             value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train-local.slurm
+              && sbatch katib-train.slurm
           - name: outputFileName
             value: mnist.log
           - name: s3artifact
@@ -48,7 +48,7 @@ spec:
           parameters:
           - name: command
             value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train-local.slurm
+              && sbatch katib-train.slurm
           - name: outputFileName
             value: mnist.log
           - name: s3artifact
@@ -65,7 +65,7 @@ spec:
           parameters:
           - name: command
             value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train-local.slurm
+              && sbatch katib-train.slurm
           - name: outputFileName
             value: mnist.log
           - name: s3artifact

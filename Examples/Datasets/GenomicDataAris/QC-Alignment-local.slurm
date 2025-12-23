@@ -1,6 +1,6 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=Genomic-QC-Alignment
+#SBATCH --job-name=Genomic-QC-Alignment-%j
 #SBATCH --output=Genomic-QC-Alignment.%j.out
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2

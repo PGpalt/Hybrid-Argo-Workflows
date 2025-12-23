@@ -1,26 +1,34 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=Genomic-QC-Alignment
-#SBATCH --output=Genomic-QC-Alignment.out
+#SBATCH --job-name=Genomic-QC-Alignment-%j
+#SBATCH --output=Genomic-QC-Alignment.%j.out
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --nodes=1     # Number of nodes requested
+#SBATCH --nodes=1
+#SBATCH --mem=16G   # memory per NODE
+##SBATCH --mem-per-cpu=3968M   # memory per CPU core
 #SBATCH --time=00:20:00
-#SBATCH --partition=compute    # Partition
-#SBATCH --account=pr016051_thin    # Replace with your system project
+#SBATCH --partition=compute
+#SBATCH --account=pa251203
 
-# Load ARIS modules
+set -euo pipefail
+
+# --- Conda (use WORKDIR for cache + env) ------------------------------------
+: "${WORKDIR:?WORKDIR is not set}"
 module purge
-module load gnu/4.9.2
-module load bowtie/2.2.6
-module load samtools/1.9
+module load anaconda/2024.10
+source "$(conda info --base)/etc/profile.d/conda.sh"
+
+export CONDA_PKGS_DIRS="$WORKDIR/conda/pkgs"
+conda activate "$WORKDIR/conda/envs/bioalign"
 
 # --- CONFIG: all files in $PWD ----------------------------------------------
-
-REF=./genome.fa
+REF="./${DATAPATH}/genome.fa"
 R1=./sample_R1.trimmed.fastq.gz
 R2=./sample_R2.trimmed.fastq.gz
 OUT_DIR="${DATAPATH}"
+
+mkdir -p "$OUT_DIR"
 
 base=$(basename "$REF" .fa)
 

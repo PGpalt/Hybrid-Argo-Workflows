@@ -13,7 +13,7 @@ spec:
           parameters:
           - name: command
             value: export LR=${trialParameters.learningRate} && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train-local.slurm
+              && sbatch katib-train.slurm
           - name: outputFileName
             value: mnist.log
           - name: fetchData
@@ -43,7 +43,7 @@ spec:
       image: python:alpine3.6
       source: 'import random
 
-        print(60000//random.randint(20000, 40000))
+        print(60000//random.randint(40000, 40000))
 
         '
   - container:
@@ -52,7 +52,7 @@ spec:
       command:
       - sh
       - -c
-      image: alpine:latest
+      image: busybox:latest
     inputs:
       artifacts:
       - name: logs
