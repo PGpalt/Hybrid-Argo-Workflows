@@ -10,78 +10,106 @@ spec:
   templates:
   - dag:
       tasks:
-      - name: gen-epochs
-        template: gen-epochs-template
+      - name: fastp-trimming
+        template: fastp-trimming-template
       - arguments:
           parameters:
           - name: command
-            value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train.slurm
-          - name: outputFileName
-            value: mnist.log
+            value: ls
           - name: s3artifact
-            value: Mnist-Dataset
+            value: GenomicDataAris
         dependencies:
-        - gen-epochs
-        name: model-training
+        - fastp-trimming
+        name: ARIS-Input-Stage
         templateRef:
           clusterScope: true
           name: slurm-template
           template: slurm-submit-job
       - arguments:
+          artifacts:
+          - from: '{{tasks.ARIS-Input-Stage.outputs.artifacts.output-artifact}}'
+            name: input-artifact
           parameters:
           - name: command
-            value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train.slurm
+            value: export DATAPATH='E-Coli' && sbatch QC-Alignment-2.slurm
+          - name: fetchData
+            value: true
           - name: outputFileName
-            value: mnist.log
-          - name: s3artifact
-            value: Mnist-Dataset
+            value: alignment_summary-E-Coli.txt
+          - name: slurmInput
+            value: 'true'
         dependencies:
-        - gen-epochs
-        name: model-training2
+        - ARIS-Input-Stage
+        name: Alignment1
         templateRef:
           clusterScope: true
           name: slurm-template
           template: slurm-submit-job
       - arguments:
+          artifacts:
+          - from: '{{tasks.ARIS-Input-Stage.outputs.artifacts.output-artifact}}'
+            name: input-artifact
           parameters:
           - name: command
-            value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train.slurm
+            value: export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-2.slurm
+          - name: fetchData
+            value: true
           - name: outputFileName
-            value: mnist.log
-          - name: s3artifact
-            value: Mnist-Dataset
+            value: alignment_summary-Salmonella-Enterica.txt
+          - name: slurmInput
+            value: 'true'
         dependencies:
-        - gen-epochs
-        - model-training
-        name: model-training3
+        - ARIS-Input-Stage
+        name: Alignment2
         templateRef:
           clusterScope: true
           name: slurm-template
           template: slurm-submit-job
       - arguments:
+          artifacts:
+          - from: '{{tasks.ARIS-Input-Stage.outputs.artifacts.output-artifact}}'
+            name: input-artifact
           parameters:
           - name: command
-            value: export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train.slurm
+            value: export DATAPATH='Shigella' && sbatch QC-Alignment-2.slurm
+          - name: fetchData
+            value: true
           - name: outputFileName
-            value: mnist.log
-          - name: s3artifact
-            value: Mnist-Dataset
+            value: alignment_summary-Shigella.txt
+          - name: slurmInput
+            value: 'true'
         dependencies:
-        - gen-epochs
-        - model-training2
-        name: model-training4
+        - ARIS-Input-Stage
+        - Alignment1
+        name: Alignment3
         templateRef:
           clusterScope: true
           name: slurm-template
           template: slurm-submit-job
     name: hybrid-workflow
-  - name: gen-epochs-template
-    script:
+  - container:
+      args:
+      - "mkdir -p /out && \\\nfastp \\\n  -i /data/sample_R1.fastq.gz \\\n  -I /data/sample_R2.fastq.gz\
+        \ \\\n  -o /out/sample_R1.trimmed.fastq.gz \\\n  -O /out/sample_R2.trimmed.fastq.gz\
+        \ \\\n  -h /out/trim_report.html\n"
       command:
-      - python
-      image: python:alpine3.6
-      source: "import random\nprint(60000//random.randint(40000, 40000))     \n"
+      - sh
+      - -c
+      image: quay.io/biocontainers/fastp:0.23.1--h79da9fb_0
+    inputs:
+      artifacts:
+      - archive:
+          none: {}
+        name: inputArtifact
+        path: /data
+        s3:
+          key: GenomicData
+    name: fastp-trimming-template
+    outputs:
+      artifacts:
+      - archive:
+          none: {}
+        name: outputArtifact
+        path: /out
+        s3:
+          key: GenomicDataAris

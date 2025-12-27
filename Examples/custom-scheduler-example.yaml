@@ -1,51 +1,72 @@
 jobs:
-  - name: gen-epochs
+  - name: fastp-trimming
     type: k8s
     jobSpec:
-      script:
-        image: python:alpine3.6
-        command:
-          - python
-        source: |
-          import random
-          print(60000//random.randint(40000, 40000))     
-
-  - name: model-training
+      container:
+        image: quay.io/biocontainers/fastp:0.23.1--h79da9fb_0
+        command: ["sh", "-c"]
+        args:
+          - |
+            mkdir -p /out && \
+            fastp \
+              -i /data/sample_R1.fastq.gz \
+              -I /data/sample_R2.fastq.gz \
+              -o /out/sample_R1.trimmed.fastq.gz \
+              -O /out/sample_R2.trimmed.fastq.gz \
+              -h /out/trim_report.html
+      inputs:
+        artifacts:
+          - name: inputArtifact
+            path: /data
+            s3:
+              key: GenomicData
+            archive:
+              none: { }
+      outputs:
+        artifacts:
+          - name: outputArtifact
+            path: /out
+            s3:
+              key: GenomicDataAris
+            archive:
+              none: { }  
+  
+  - name: ARIS-Input-Stage
     type: slurm
-    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
+    command: "ls"
     inputs:
-      - s3key: Mnist-Dataset
-      - from: gen-epochs
-    outputs:
-      - name: outputFileName
-        value: mnist.log
+      - s3key: GenomicDataAris
+      - from: fastp-trimming
 
-  - name: model-training2
+  - name: Alignment1
     type: slurm
-    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
+    command: "export DATAPATH='E-Coli' && sbatch QC-Alignment-2.slurm"
     inputs:
-      - s3key: Mnist-Dataset
-      - from: gen-epochs
+      - from: ARIS-Input-Stage
     outputs:
+      - name: fetchData
+        value: true
       - name: outputFileName
-        value: mnist.log
+        value: alignment_summary-E-Coli.txt
 
-  - name: model-training3
+  - name: Alignment2
     type: slurm
-    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
+    command: "export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-2.slurm"
     inputs:
-      - s3key: Mnist-Dataset
-      - from: gen-epochs
+      - from: ARIS-Input-Stage
     outputs:
+      - name: fetchData
+        value: true
       - name: outputFileName
-        value: mnist.log
+        value: alignment_summary-Salmonella-Enterica.txt
 
-  - name: model-training4
+  - name: Alignment3
     type: slurm
-    command: "export LR=0.017 && export epochs={{tasks.gen-epochs.outputs.result}} && sbatch katib-train.slurm"
+    command: "export DATAPATH='Shigella' && sbatch QC-Alignment-2.slurm"
     inputs:
-      - s3key: Mnist-Dataset
-      - from: gen-epochs
+      - from: ARIS-Input-Stage
     outputs:
+      - name: fetchData
+        value: true
       - name: outputFileName
-        value: mnist.log
+        value: alignment_summary-Shigella.txt
