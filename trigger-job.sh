@@ -116,10 +116,22 @@ fi
 if [ "${OUTPUT_FILE_NAME:-NotSet}" != "NotSet" ] && [ "${FETCH_DATA:-false}" = "true" ]; then
   if [[ "${OUTPUT_FILE_NAME}" == /* ]]; then
     base_file=$(basename "${OUTPUT_FILE_NAME}")
-    scp ${SSH_OPTS} "${SSH_USER}@${SSH_HOST}:${OUTPUT_FILE_NAME}" "${LOCAL_OUT_DIR}/${base_file}"
+    scp ${SSH_OPTS} -r "${SSH_USER}@${SSH_HOST}:${OUTPUT_FILE_NAME}" "${LOCAL_OUT_DIR}/${base_file}"
   else
     base_file=$(basename "${OUTPUT_FILE_NAME}")
-    scp ${SSH_OPTS} "${SSH_USER}@${SSH_HOST}:${INPUT_FILE_PATH}/${OUTPUT_FILE_NAME}" \
+    scp ${SSH_OPTS} -r "${SSH_USER}@${SSH_HOST}:${INPUT_FILE_PATH}/${OUTPUT_FILE_NAME}" \
       "${LOCAL_OUT_DIR}/${base_file}"
   fi
+fi
+
+if [ "${CLEAN_DATA}" != "false" ] && [ "${OUTPUT_FILE_NAME:-NotSet}" != "NotSet" ]; then
+  OUTPUT_FILE_NAME="${OUTPUT_FILE_NAME%/}"
+
+  if [[ "${OUTPUT_FILE_NAME}" == /* ]]; then
+    REMOTE_CLEAN="${OUTPUT_FILE_NAME}"
+  else
+    REMOTE_CLEAN="${INPUT_FILE_PATH}/${OUTPUT_FILE_NAME}"
+  fi
+
+  rssh "rm -rf -- \"${REMOTE_CLEAN}\""
 fi

@@ -42,7 +42,8 @@ INPUT MAPPING (important behavioral points):
 Additionally, for slurm jobs if an outputs section is defined (e.g. outputFileName and outputFilePath),
 those values are added as parameters so that the slurm template receives them.
 In that case, if a slurm job defines outputs and is referenced by a non-slurm job, an extra parameter
-fetchData is set to true.
+fetchData is set to true. If a slurm job has no downstream slurm jobs that depend on it, an extra
+parameter cleanData is set to true.
 
 The generated workflow will have:
   - A top-level DAG template ("hybrid-workflow") that lists tasks.
@@ -329,6 +330,19 @@ def build_workflow(jobs):
                         source_job = source
                     if source_job in slurm_job_needs:
                         slurm_job_needs[source_job] = True
+    # Precompute for each slurm job whether a downstream slurm job depends on it.
+    slurm_job_has_slurm_dependents = {job["name"]: False for job in jobs if job["type"] == "slurm"}
+    for job in jobs:
+        if job["type"] == "slurm":
+            for inp in job.get("inputs", []):
+                if isinstance(inp, dict) and "from" in inp:
+                    source = inp["from"]
+                    if "." in source:
+                        source_job, _ = source.split(".", 1)
+                    else:
+                        source_job = source
+                    if source_job in slurm_job_has_slurm_dependents:
+                        slurm_job_has_slurm_dependents[source_job] = True
 
     workflow = {
         "apiVersion": "argoproj.io/v1alpha1",
@@ -381,6 +395,11 @@ def build_workflow(jobs):
                     output_names = [output["name"] for output in job["outputs"]]
                     if "fetchData" not in output_names:
                         task_args["parameters"].append({"name": "fetchData", "value": "true"})
+            # If no downstream slurm job depends on this slurm job, set cleanData=true.
+            if not slurm_job_has_slurm_dependents.get(job["name"], False):
+                param_names = {param["name"] for param in task_args.get("parameters", [])}
+                if "cleanData" not in param_names:
+                    task_args["parameters"].append({"name": "cleanData", "value": "true"})
 
         # Merge input-derived args into any prebuilt arg set
         task_args = merge_arguments(task_args, input_args)

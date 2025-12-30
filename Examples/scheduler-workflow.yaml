@@ -31,11 +31,13 @@ spec:
             name: input-artifact
           parameters:
           - name: command
-            value: export DATAPATH='E-Coli' && sbatch QC-Alignment-2.slurm
+            value: export DATAPATH='E-Coli' && sbatch QC-Alignment.slurm
           - name: fetchData
             value: true
           - name: outputFileName
-            value: alignment_summary-E-Coli.txt
+            value: E-Coli
+          - name: cleanData
+            value: 'true'
           - name: slurmInput
             value: 'true'
         dependencies:
@@ -51,11 +53,13 @@ spec:
             name: input-artifact
           parameters:
           - name: command
-            value: export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-2.slurm
+            value: export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment.slurm
           - name: fetchData
             value: true
           - name: outputFileName
-            value: alignment_summary-Salmonella-Enterica.txt
+            value: Salmonella-Enterica
+          - name: cleanData
+            value: 'true'
           - name: slurmInput
             value: 'true'
         dependencies:
@@ -71,11 +75,13 @@ spec:
             name: input-artifact
           parameters:
           - name: command
-            value: export DATAPATH='Shigella' && sbatch QC-Alignment-2.slurm
+            value: export DATAPATH='Shigella' && sbatch QC-Alignment.slurm
           - name: fetchData
             value: true
           - name: outputFileName
-            value: alignment_summary-Shigella.txt
+            value: Shigella
+          - name: cleanData
+            value: 'true'
           - name: slurmInput
             value: 'true'
         dependencies:
