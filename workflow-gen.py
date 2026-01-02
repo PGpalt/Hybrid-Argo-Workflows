@@ -42,8 +42,11 @@ INPUT MAPPING (important behavioral points):
 Additionally, for slurm jobs if an outputs section is defined (e.g. outputFileName and outputFilePath),
 those values are added as parameters so that the slurm template receives them.
 In that case, if a slurm job defines outputs and is referenced by a non-slurm job, an extra parameter
-fetchData is set to true. If a slurm job has no downstream slurm jobs that depend on it, an extra
-parameter cleanData is set to true.
+fetchData is set to true. Slurm tasks with no downstream slurm dependents get cleanData=true **only when**
+outputFileName is set, and slurm tasks with downstream slurm dependents get a cleanup task that depends
+on the upstream slurm task and its immediate downstream slurm tasks and runs
+`rm -rf -- "<outputFileName>"` (cleanup is skipped entirely if outputFileName is not set). This is
+computed before any custom scheduler adjustments are applied.
 
 The generated workflow will have:
   - A top-level DAG template ("hybrid-workflow") that lists tasks.
@@ -317,32 +320,25 @@ def merge_arguments(existing, new):
 def build_workflow(jobs):
     # Build a mapping of job name to job type.
     job_types = {job["name"]: job["type"] for job in jobs}
+    # Precompute job dependency graph from inputs.
+    job_deps = {job["name"]: set() for job in jobs}
+    for job in jobs:
+        for inp in job.get("inputs", []):
+            if isinstance(inp, dict) and "from" in inp:
+                source = inp["from"]
+                if "." in source:
+                    source_job, _ = source.split(".", 1)
+                else:
+                    source_job = source
+                job_deps[job["name"]].add(source_job)
+
     # Precompute for each slurm job whether a non-slurm job uses its output.
     slurm_job_needs = {job["name"]: False for job in jobs if job["type"] == "slurm"}
     for job in jobs:
         if job["type"] != "slurm":
-            for inp in job.get("inputs", []):
-                if "from" in inp:
-                    source = inp["from"]
-                    if "." in source:
-                        source_job, _ = source.split(".", 1)
-                    else:
-                        source_job = source
-                    if source_job in slurm_job_needs:
-                        slurm_job_needs[source_job] = True
-    # Precompute for each slurm job whether a downstream slurm job depends on it.
-    slurm_job_has_slurm_dependents = {job["name"]: False for job in jobs if job["type"] == "slurm"}
-    for job in jobs:
-        if job["type"] == "slurm":
-            for inp in job.get("inputs", []):
-                if isinstance(inp, dict) and "from" in inp:
-                    source = inp["from"]
-                    if "." in source:
-                        source_job, _ = source.split(".", 1)
-                    else:
-                        source_job = source
-                    if source_job in slurm_job_has_slurm_dependents:
-                        slurm_job_has_slurm_dependents[source_job] = True
+            for dep in job_deps.get(job["name"], []):
+                if dep in slurm_job_needs:
+                    slurm_job_needs[dep] = True
 
     workflow = {
         "apiVersion": "argoproj.io/v1alpha1",
@@ -365,17 +361,9 @@ def build_workflow(jobs):
         task = {"name": job["name"]}
 
         # Dependencies: any input that has 'from'
-        dep_jobs = []
-        for inp in job.get("inputs", []):
-            if isinstance(inp, dict) and "from" in inp:
-                source = inp["from"]
-                if "." in source:
-                    source_job, _ = source.split(".", 1)
-                else:
-                    source_job = source
-                dep_jobs.append(source_job)
+        dep_jobs = list(job_deps.get(job["name"], []))
         if dep_jobs:
-            task["dependencies"] = list(set(dep_jobs))
+            task["dependencies"] = dep_jobs
 
         # Build arguments from inputs
         input_args = process_job_inputs(job, job_type=job["type"], job_types=job_types)
@@ -395,11 +383,6 @@ def build_workflow(jobs):
                     output_names = [output["name"] for output in job["outputs"]]
                     if "fetchData" not in output_names:
                         task_args["parameters"].append({"name": "fetchData", "value": "true"})
-            # If no downstream slurm job depends on this slurm job, set cleanData=true.
-            if not slurm_job_has_slurm_dependents.get(job["name"], False):
-                param_names = {param["name"] for param in task_args.get("parameters", [])}
-                if "cleanData" not in param_names:
-                    task_args["parameters"].append({"name": "cleanData", "value": "true"})
 
         # Merge input-derived args into any prebuilt arg set
         task_args = merge_arguments(task_args, input_args)
@@ -450,6 +433,102 @@ def build_workflow(jobs):
     return workflow
 
 
+def find_dag_template(workflow):
+    spec = workflow.get("spec", {})
+    entrypoint = spec.get("entrypoint")
+    templates = spec.get("templates", [])
+    if entrypoint:
+        for t in templates:
+            if t.get("name") == entrypoint and "dag" in t:
+                return t
+    for t in templates:
+        if "dag" in t:
+            return t
+    return None
+
+
+def apply_slurm_cleanup(workflow, jobs):
+    dag_template = find_dag_template(workflow)
+    if not dag_template:
+        return workflow
+
+    tasks = dag_template.get("dag", {}).get("tasks", [])
+    tasks_by_name = {
+        t.get("name"): t
+        for t in tasks
+        if isinstance(t, dict) and "name" in t
+    }
+    job_types = {job["name"]: job["type"] for job in jobs}
+    slurm_task_names = [name for name in tasks_by_name if job_types.get(name) == "slurm"]
+
+    deps = {name: set(tasks_by_name[name].get("dependencies", [])) for name in tasks_by_name}
+
+    slurm_direct_rdeps = {name: set() for name in slurm_task_names}
+    for name in slurm_task_names:
+        for dep in deps.get(name, set()):
+            if dep in slurm_direct_rdeps:
+                slurm_direct_rdeps[dep].add(name)
+
+    def get_task_param(task, param_name):
+        for param in task.get("arguments", {}).get("parameters", []):
+            if isinstance(param, dict) and param.get("name") == param_name:
+                return param.get("value")
+        return None
+
+    # Ensure cleanData is set for terminal slurm tasks (no downstream slurm dependents).
+    for name in slurm_task_names:
+        if slurm_direct_rdeps.get(name):
+            continue
+        task = tasks_by_name[name]
+        args = task.setdefault("arguments", {})
+        params = args.setdefault("parameters", [])
+        param_names = {p.get("name") for p in params if isinstance(p, dict)}
+        if "cleanData" not in param_names and get_task_param(task, "outputFileName"):
+            params.append({"name": "cleanData", "value": "true"})
+
+    # Add cleanup tasks for slurm jobs that have downstream slurm dependents.
+    task_names = set(tasks_by_name)
+    for name in slurm_task_names:
+        dependents = slurm_direct_rdeps.get(name, set())
+        if not dependents:
+            continue
+        output_file_name = get_task_param(tasks_by_name[name], "outputFileName")
+        if not output_file_name:
+            continue
+        cleanup_command = f"rm -rf -- \"{output_file_name}\""
+
+        cleanup_name = f"{name}-cleanup"
+        if cleanup_name in task_names:
+            sys.exit(f"Cleanup task name conflicts with existing task: {cleanup_name}")
+
+        cleanup_task = {
+            "name": cleanup_name,
+            "dependencies": sorted({name, *dependents}),
+            "arguments": {
+                "parameters": [
+                    {"name": "command", "value": cleanup_command},
+                    {"name": "slurmInput", "value": "true"},
+                ],
+                "artifacts": [
+                    {
+                        "name": "input-artifact",
+                        "from": f"{{{{tasks.{name}.outputs.artifacts.output-artifact}}}}",
+                    }
+                ],
+            },
+            "templateRef": {
+                "name": "slurm-template",
+                "template": "slurm-submit-job",
+                "clusterScope": True,
+            },
+        }
+
+        tasks.append(cleanup_task)
+        task_names.add(cleanup_name)
+
+    return workflow
+
+
 def load_scheduler(scheduler_path):
     """Dynamically load the scheduler module from a given file path.
 
@@ -487,6 +566,7 @@ def main():
     jobs = data["jobs"]
 
     workflow = build_workflow(jobs)
+    workflow = apply_slurm_cleanup(workflow, jobs)
 
     # If a custom scheduler is provided, load it and apply it.
     # Behavior is identical to before for legacy schedulers.

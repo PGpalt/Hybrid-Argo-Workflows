@@ -36,9 +36,9 @@ spec:
             value: true
           - name: outputFileName
             value: E-Coli
-          - name: cleanData
-            value: 'true'
           - name: slurmInput
+            value: 'true'
+          - name: cleanData
             value: 'true'
         dependencies:
         - ARIS-Input-Stage
@@ -58,9 +58,9 @@ spec:
             value: true
           - name: outputFileName
             value: Salmonella-Enterica
-          - name: cleanData
-            value: 'true'
           - name: slurmInput
+            value: 'true'
+          - name: cleanData
             value: 'true'
         dependencies:
         - ARIS-Input-Stage
@@ -80,9 +80,9 @@ spec:
             value: true
           - name: outputFileName
             value: Shigella
-          - name: cleanData
-            value: 'true'
           - name: slurmInput
+            value: 'true'
+          - name: cleanData
             value: 'true'
         dependencies:
         - ARIS-Input-Stage
