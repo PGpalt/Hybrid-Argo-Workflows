@@ -1,0 +1,72 @@
+jobs:
+  - name: fastp-trimming
+    type: k8s
+    jobSpec:
+      container:
+        image: quay.io/biocontainers/fastp:0.23.1--h79da9fb_0
+        command: ["sh", "-c"]
+        args:
+          - |
+            mkdir -p /out && \
+            fastp \
+              -i /data/sample_R1.fastq.gz \
+              -I /data/sample_R2.fastq.gz \
+              -o /out/sample_R1.trimmed.fastq.gz \
+              -O /out/sample_R2.trimmed.fastq.gz \
+              -h /out/trim_report.html
+      inputs:
+        artifacts:
+          - name: inputArtifact
+            path: /data
+            s3:
+              key: GenomicData
+            archive:
+              none: { }
+      outputs:
+        artifacts:
+          - name: outputArtifact
+            path: /out
+            s3:
+              key: GenomicDataAris
+            archive:
+              none: { }  
+  
+  - name: ARIS-Input-Stage
+    type: slurm
+    command: "ls"
+    inputs:
+      - s3key: GenomicDataAris
+      - from: fastp-trimming
+
+  - name: Alignment1
+    type: slurm
+    command: "export DATAPATH='E-Coli' && sbatch QC-Alignment-local.slurm"
+    inputs:
+      - from: ARIS-Input-Stage
+    outputs:
+      - name: fetchData
+        value: true
+      - name: outputFileName
+        value: E-Coli
+
+  - name: Alignment2
+    type: slurm
+    command: "export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-local.slurm"
+    inputs:
+      - from: Alignment1
+    outputs:
+      - name: fetchData
+        value: true
+      - name: outputFileName
+        value: Salmonella-Enterica
+
+  - name: Alignment3
+    type: slurm
+    command: "export DATAPATH='Shigella' && sbatch QC-Alignment-local.slurm"
+    inputs:
+      - from: Alignment2
+    outputs:
+      - name: fetchData
+        value: true
+      - name: outputFileName
+        value: Shigella

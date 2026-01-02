@@ -1,0 +1,147 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: hybrid-workflow-
+spec:
+  entrypoint: hybrid-workflow
+  templates:
+  - dag:
+      tasks:
+      - name: fastp-trimming
+        template: fastp-trimming-template
+      - arguments:
+          parameters:
+          - name: command
+            value: ls
+          - name: s3artifact
+            value: GenomicDataAris
+        dependencies:
+        - fastp-trimming
+        name: ARIS-Input-Stage
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          artifacts:
+          - from: '{{tasks.ARIS-Input-Stage.outputs.artifacts.output-artifact}}'
+            name: input-artifact
+          parameters:
+          - name: command
+            value: export DATAPATH='E-Coli' && sbatch QC-Alignment-local.slurm
+          - name: fetchData
+            value: true
+          - name: outputFileName
+            value: E-Coli
+          - name: slurmInput
+            value: 'true'
+        dependencies:
+        - ARIS-Input-Stage
+        name: Alignment1
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          artifacts:
+          - from: '{{tasks.Alignment1.outputs.artifacts.output-artifact}}'
+            name: input-artifact
+          parameters:
+          - name: command
+            value: export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-local.slurm
+          - name: fetchData
+            value: true
+          - name: outputFileName
+            value: Salmonella-Enterica
+          - name: slurmInput
+            value: 'true'
+        dependencies:
+        - Alignment1
+        name: Alignment2
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          artifacts:
+          - from: '{{tasks.Alignment2.outputs.artifacts.output-artifact}}'
+            name: input-artifact
+          parameters:
+          - name: command
+            value: export DATAPATH='Shigella' && sbatch QC-Alignment-local.slurm
+          - name: fetchData
+            value: true
+          - name: outputFileName
+            value: Shigella
+          - name: slurmInput
+            value: 'true'
+          - name: cleanData
+            value: 'true'
+        dependencies:
+        - Alignment2
+        name: Alignment3
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          artifacts:
+          - from: '{{tasks.Alignment1.outputs.artifacts.output-artifact}}'
+            name: input-artifact
+          parameters:
+          - name: command
+            value: rm -rf -- "E-Coli"
+          - name: slurmInput
+            value: 'true'
+        dependencies:
+        - Alignment1
+        - Alignment2
+        name: Alignment1-cleanup
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+      - arguments:
+          artifacts:
+          - from: '{{tasks.Alignment2.outputs.artifacts.output-artifact}}'
+            name: input-artifact
+          parameters:
+          - name: command
+            value: rm -rf -- "Salmonella-Enterica"
+          - name: slurmInput
+            value: 'true'
+        dependencies:
+        - Alignment2
+        - Alignment3
+        name: Alignment2-cleanup
+        templateRef:
+          clusterScope: true
+          name: slurm-template
+          template: slurm-submit-job
+    name: hybrid-workflow
+  - container:
+      args:
+      - "mkdir -p /out && \\\nfastp \\\n  -i /data/sample_R1.fastq.gz \\\n  -I /data/sample_R2.fastq.gz\
+        \ \\\n  -o /out/sample_R1.trimmed.fastq.gz \\\n  -O /out/sample_R2.trimmed.fastq.gz\
+        \ \\\n  -h /out/trim_report.html\n"
+      command:
+      - sh
+      - -c
+      image: quay.io/biocontainers/fastp:0.23.1--h79da9fb_0
+    inputs:
+      artifacts:
+      - archive:
+          none: {}
+        name: inputArtifact
+        path: /data
+        s3:
+          key: GenomicData
+    name: fastp-trimming-template
+    outputs:
+      artifacts:
+      - archive:
+          none: {}
+        name: outputArtifact
+        path: /out
+        s3:
+          key: GenomicDataAris
