@@ -36,7 +36,7 @@ jobs:
       container:
         image: busybox:latest
         command: [sh, -c]
-        args: ["sleep 5;cat /tmp/logs/mnist.log;cp /tmp/logs/mnist.log /katib/mnist.log"]
+        args: ["sleep 10;cp /tmp/logs/mnist.log /katib/mnist.log;cat /katib/mnist.log"]
         # args: [cat /var/log/katib/mnist.log]
     inputs:
       - name: logs

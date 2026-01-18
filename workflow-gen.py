@@ -39,13 +39,13 @@ INPUT MAPPING (important behavioral points):
          the last one wins due to Argo argument name uniqueness.)
 
 
-Additionally, for slurm jobs if an outputs section is defined (e.g. outputFileName and outputFilePath),
-those values are added as parameters so that the slurm template receives them.
+Additionally, for slurm jobs if an outputs section is defined (e.g. outputFileName, outputFilePath,
+or cleanDataPath), those values are added as parameters so that the slurm template receives them.
 In that case, if a slurm job defines outputs and is referenced by a non-slurm job, an extra parameter
 fetchData is set to true. Slurm tasks with no downstream slurm dependents get cleanData=true **only when**
-outputFileName is set, and slurm tasks with downstream slurm dependents get a cleanup task that depends
+cleanDataPath is set, and slurm tasks with downstream slurm dependents get a cleanup task that depends
 on the upstream slurm task and its immediate downstream slurm tasks and runs
-`rm -rf -- "<outputFileName>"` (cleanup is skipped entirely if outputFileName is not set). This is
+`rm -rf -- "<cleanDataPath>"` (cleanup is skipped entirely if cleanDataPath is not set). This is
 computed before any custom scheduler adjustments are applied.
 
 The generated workflow will have:
@@ -483,7 +483,7 @@ def apply_slurm_cleanup(workflow, jobs):
         args = task.setdefault("arguments", {})
         params = args.setdefault("parameters", [])
         param_names = {p.get("name") for p in params if isinstance(p, dict)}
-        if "cleanData" not in param_names and get_task_param(task, "outputFileName"):
+        if "cleanData" not in param_names and get_task_param(task, "cleanDataPath"):
             params.append({"name": "cleanData", "value": "true"})
 
     # Add cleanup tasks for slurm jobs that have downstream slurm dependents.
@@ -492,10 +492,10 @@ def apply_slurm_cleanup(workflow, jobs):
         dependents = slurm_direct_rdeps.get(name, set())
         if not dependents:
             continue
-        output_file_name = get_task_param(tasks_by_name[name], "outputFileName")
-        if not output_file_name:
+        clean_data_path = get_task_param(tasks_by_name[name], "cleanDataPath")
+        if not clean_data_path:
             continue
-        cleanup_command = f"rm -rf -- \"{output_file_name}\""
+        cleanup_command = f"rm -rf -- \"{clean_data_path}\""
 
         cleanup_name = f"{name}-cleanup"
         if cleanup_name in task_names:

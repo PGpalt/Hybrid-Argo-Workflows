@@ -17,6 +17,8 @@ spec:
             default: "false"
           - name: cleanData
             default: "false"
+          - name: cleanDataPath
+            default: "NotSet"
           - name: inputFilePath
             default: "NotSet"
           - name: outputFileName
@@ -84,6 +86,8 @@ spec:
             value: "{{inputs.parameters.fetchData}}"
           - name: CLEAN_DATA
             value: "{{inputs.parameters.cleanData}}"
+          - name: CLEAN_DATA_PATH
+            value: "{{inputs.parameters.cleanDataPath}}"
         image: docker.io/p4nikasgr/my-ssh-client:latest
         imagePullPolicy: IfNotPresent
         volumeMounts:

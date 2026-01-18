@@ -40,33 +40,39 @@ jobs:
 
   - name: Alignment1
     type: slurm
-    command: "export DATAPATH='E-Coli' && sbatch QC-Alignment-local.slurm"
+    command: "export DATAPATH='E-Coli' && sbatch QC-Alignment.slurm"
     inputs:
       - from: ARIS-Input-Stage
     outputs:
       - name: fetchData
         value: true
       - name: outputFileName
+        value: E-Coli/alignment_summary.txt
+      - name: cleanDataPath
         value: E-Coli
 
   - name: Alignment2
     type: slurm
-    command: "export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-local.slurm"
+    command: "export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment.slurm"
     inputs:
       - from: Alignment1
     outputs:
       - name: fetchData
         value: true
       - name: outputFileName
+        value: Salmonella-Enterica/alignment_summary.txt
+      - name: cleanDataPath
         value: Salmonella-Enterica
 
   - name: Alignment3
     type: slurm
-    command: "export DATAPATH='Shigella' && sbatch QC-Alignment-local.slurm"
+    command: "export DATAPATH='Shigella' && sbatch QC-Alignment.slurm"
     inputs:
       - from: Alignment2
     outputs:
       - name: fetchData
         value: true
       - name: outputFileName
+        value: Shigella/alignment_summary.txt
+      - name: cleanDataPath
         value: Shigella

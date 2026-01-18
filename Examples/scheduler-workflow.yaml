@@ -35,6 +35,8 @@ spec:
           - name: fetchData
             value: true
           - name: outputFileName
+            value: E-Coli/alignment_summary.txt
+          - name: cleanDataPath
             value: E-Coli
           - name: slurmInput
             value: 'true'
@@ -57,6 +59,8 @@ spec:
           - name: fetchData
             value: true
           - name: outputFileName
+            value: Salmonella-Enterica/alignment_summary.txt
+          - name: cleanDataPath
             value: Salmonella-Enterica
           - name: slurmInput
             value: 'true'
@@ -79,6 +83,8 @@ spec:
           - name: fetchData
             value: true
           - name: outputFileName
+            value: Shigella/alignment_summary.txt
+          - name: cleanDataPath
             value: Shigella
           - name: slurmInput
             value: 'true'

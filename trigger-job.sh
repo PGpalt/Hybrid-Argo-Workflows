@@ -124,13 +124,13 @@ if [ "${OUTPUT_FILE_NAME:-NotSet}" != "NotSet" ] && [ "${FETCH_DATA:-false}" = "
   fi
 fi
 
-if [ "${CLEAN_DATA}" != "false" ] && [ "${OUTPUT_FILE_NAME:-NotSet}" != "NotSet" ]; then
-  OUTPUT_FILE_NAME="${OUTPUT_FILE_NAME%/}"
+if [ "${CLEAN_DATA}" != "false" ] && [ "${CLEAN_DATA_PATH:-NotSet}" != "NotSet" ]; then
+  CLEAN_DATA_PATH="${CLEAN_DATA_PATH%/}"
 
-  if [[ "${OUTPUT_FILE_NAME}" == /* ]]; then
-    REMOTE_CLEAN="${OUTPUT_FILE_NAME}"
+  if [[ "${CLEAN_DATA_PATH}" == /* ]]; then
+    REMOTE_CLEAN="${CLEAN_DATA_PATH}"
   else
-    REMOTE_CLEAN="${INPUT_FILE_PATH}/${OUTPUT_FILE_NAME}"
+    REMOTE_CLEAN="${INPUT_FILE_PATH}/${CLEAN_DATA_PATH}"
   fi
 
   rssh "rm -rf -- \"${REMOTE_CLEAN}\""

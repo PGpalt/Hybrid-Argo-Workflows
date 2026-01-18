@@ -47,6 +47,8 @@ jobs:
       - name: fetchData
         value: true
       - name: outputFileName
+        value: E-Coli/alignment_summary.txt
+      - name: cleanDataPath
         value: E-Coli
 
   - name: Alignment2
@@ -58,6 +60,8 @@ jobs:
       - name: fetchData
         value: true
       - name: outputFileName
+        value: Salmonella-Enterica/alignment_summary.txt
+      - name: cleanDataPath
         value: Salmonella-Enterica
 
   - name: Alignment3
@@ -69,4 +73,6 @@ jobs:
       - name: fetchData
         value: true
       - name: outputFileName
+        value: Shigella/alignment_summary.txt
+      - name: cleanDataPath
         value: Shigella

@@ -99,7 +99,7 @@ spec:
               '
         - container:
             args:
-            - sleep 5;cat /tmp/logs/mnist.log;cp /tmp/logs/mnist.log /katib/mnist.log
+            - sleep 10;cp /tmp/logs/mnist.log /katib/mnist.log;cat /katib/mnist.log
             command:
             - sh
             - -c
