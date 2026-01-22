@@ -44,25 +44,6 @@ For slurm jobs (type "slurm"), the job must define:
   - command (e.g. the slurm submission command)
 and the DAG task will use a templateRef to reference an externally defined slurm template.
 
-INPUT MAPPING (important behavioral points):
-   • For non-slurm target jobs:
-      - Each input must have a 'name'.
-      - If the input comes from another job ("from"), then:
-         - If the source job is slurm, an **artifact** arg is generated referencing the slurm job's "output-artifact".
-            - Otherwise:
-               - If input type is "artifact", reference the source artifact by name.
-               - Else, use a parameter reference.
-   • For slurm target jobs:
-      - The 'name' field is ignored.
-      - If an input uses a literal S3 key, specify it as **s3key**. This is passed as parameter "s3artifact".
-      - The compiler enforces that **s3key appears at most once per slurm job** (across all its inputs).
-      - If an input only has "from" and the source job is slurm:
-            * add parameter "slurmInput"="true"
-            * add artifact named "input-artifact" from the source's "output-artifact"
-           (Multiple such inputs are allowed; if multiple artifacts share the same name,
-            the last one wins due to Argo argument name uniqueness.)
-
-
 Additionally, for slurm jobs if an outputs section is defined (e.g. outputFileName, outputFilePath,
 or cleanDataPath), those values are added as parameters so that the slurm template receives them.
 In that case, if a slurm job defines outputs and is referenced by a non-slurm job, an extra parameter
