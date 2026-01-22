@@ -25,20 +25,20 @@ Hybrid Workflow Schema:
 This tool converts a user-defined job YAML file into an Argo Workflow YAML.
 
 Each job must include:
-  - name: a unique job name.
-  - type: either "k8s" or "slurm".
-  - jobSpec: (optional) a dictionary containing any valid Argo workflow template definition (container,script) (https://argo-workflows.readthedocs.io/en/latest/workflow-concepts/#container).
+   - name: a unique job name.
+   - type: either "k8s" or "slurm".
+   - jobSpec: (optional) a dictionary containing any valid Argo workflow template definition (container,script) (https://argo-workflows.readthedocs.io/en/latest/workflow-concepts/#container).
              For k8s jobs, this defines the full template.
              (For slurm jobs, jobSpec is not allowed.)
-  - inputs: (optional) a list of input definitions. Each input may contain:
-        - name: the input name (required for k8s jobs; ignored for slurm jobs) must match the input parameter/artifact name inside the jobSpec: definition
-        - from: (optional) the source of the input.
-                 If given as "jobName.outputName", then that output name is used.
-                 If given as "jobName", then "result" is used as the default output name.
-        - type: (optional) either "parameter" (default) or "artifact".
-        - s3key: (optional; **slurm only**) a literal S3 key to pass to the slurm template.
-        - path: (optional; **slurm only**) the path on Slurm where the S3 Artifact will be uploaded
-        - cleanDataPath:(optional; **slurm only**) the path where the clean-up will be performed
+   - inputs: (optional) a list of input definitions. Each input may contain:
+      - name: the input name (required for k8s jobs; ignored for slurm jobs) must match the input parameter/artifact name inside the jobSpec: definition
+      - from: (optional) the source of the input.
+               If given as "jobName.outputName", then that output name is used.
+               If given as "jobName", then "result" is used as the default output name.
+      - type: (optional) either "parameter" (default) or "artifact".
+      - s3key: (optional; **slurm only**) a literal S3 key to pass to the slurm template.
+      - path: (optional; **slurm only**) the path on Slurm where the S3 Artifact will be uploaded
+      - cleanDataPath:(optional; **slurm only**) the path where the clean-up will be performed
 
 For slurm jobs (type "slurm"), the job must define:
   - command (e.g. the slurm submission command)
