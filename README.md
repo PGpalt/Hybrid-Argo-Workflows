@@ -35,10 +35,12 @@ Each job must include:
       - from: (optional) the source of the input.
                If given as "jobName.outputName", then that output name is used.
                If given as "jobName", then "result" is used as the default output name.
-      - type: (optional) either "parameter" (default) or "artifact".
+      - type: (optional **k8s only**) either "parameter" (default) or "artifact".
       - s3key: (optional; **slurm only**) a literal S3 key to pass to the slurm template.
       - path: (optional; **slurm only**) the path on Slurm where the S3 Artifact will be uploaded
       - cleanDataPath:(optional; **slurm only**) the path where the clean-up will be performed
+      - outputFileName:(optional; **slurm only**) the output file path on slurm
+      - fetchData: (optional; **slurm only**) can be forced to true if you want to fetch data back from Slurm
 
 For slurm jobs (type "slurm"), the job must define:
   - command (e.g. the slurm submission command)
