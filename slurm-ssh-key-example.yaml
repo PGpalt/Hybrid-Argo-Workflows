@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: slurm-ssh-key
+type: kubernetes.io/ssh-auth
+stringData:
+  # your RSA private key
+  ssh-privatekey: |
