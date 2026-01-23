@@ -12,7 +12,7 @@ Step by Step:
    5. Apply the ssh-creds-example.yaml with host:host.minikube.internal user:root and port:"2220"
    6. generate an SSH key pair and add the public key to /root/.ssh/authorized_keys inside the Slurm Container
    7. Use the (local.slurm) version of the slurm batch scripts
-5. To run the Katib Experiment example you need to install Katib Kubeflows configured for Argo Workflows as described here (https://github.com/kubeflow/katib/blob/master/examples/v1beta1/argo/README.md)
+5. To run the Katib Experiment example you need to install Katib Kubeflows (https://www.kubeflow.org/docs/components/katib/installation/) and configure Argo Workflows as described here (https://github.com/kubeflow/katib/blob/master/examples/v1beta1/argo/README.md)
 6. Create and apply the two Kubernetes Secrets containing your SSH Credentials as in the examples (slurm-ssh-key-example.yaml / ssh-creds-example.yaml)
 7. Apply the Role Based Access Authorization rules for the Cluster Workflow Template (workflow-RBAC.yaml) ClusterRole and ClusterRoleBinding.
 8. Apply the slurm-job-workflow-template.yaml (Argo ClusterWorkflowTemplate for Slurm job Submission)
