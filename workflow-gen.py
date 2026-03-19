@@ -12,7 +12,9 @@ Each job must include:
         - name: the input name (required for non-slurm jobs; ignored for slurm jobs)
         - from: (optional) the source of the input.
                  If given as "jobName.outputName", then that output name is used.
-                 If given as "jobName", then "result" is used as the default output name.
+                 If given as "jobName", then artifact consumers will auto-pick the source
+                 artifact name when the source k8s job defines exactly one output artifact;
+                 otherwise "result" is used as the default output name.
         - type: (optional) either "parameter" (default) or "artifact".
         - s3key: (optional; **slurm only**) a literal S3 key to pass to the slurm template.
 
@@ -37,6 +39,13 @@ INPUT MAPPING (important behavioral points):
             * add artifact named "input-artifact" from the source's "output-artifact"
         (Multiple such inputs are allowed; if multiple artifacts share the same name,
          the last one wins due to Argo argument name uniqueness.)
+      - If an input only has "from" and the source job is k8s:
+            * when the slurm job defines no **s3key** anywhere in its inputs, add
+              parameter "slurmInput"="false" and artifact named "input-artifact"
+              from the source artifact output (default output name: the sole source
+              artifact when exactly one exists, otherwise "result")
+            * when the slurm job defines any **s3key**, keep the existing behavior:
+              only add the dependency; do not wire a direct artifact argument
 
 
 Additionally, for slurm jobs if an outputs section is defined (e.g. outputFileName, outputFilePath,
@@ -55,7 +64,9 @@ The generated workflow will have:
   - Task arguments are built by merging any required job fields with input mappings. Input mappings from an upstream job will reference:
        - for parameters: "{{tasks.<source_job>.outputs.parameters.<output_name>}}"
        - for artifacts: "{{tasks.<source_job>.outputs.artifacts.<output_name>}}"
-       where the default output_name is "result" if not explicitly provided.
+       where the default output_name is "result" if not explicitly provided, except that
+       artifact consumers auto-pick the source artifact name when the source k8s job has
+       exactly one output artifact.
   
 Usage:
   python3 workflow-gen.py input-job.yaml output-workflow.yaml
@@ -165,7 +176,45 @@ def load_yaml(file_path):
         sys.exit(f"Error loading YAML file: {e}")
 
 
-def process_job_inputs(job, job_type=None, job_types=None):
+def get_single_output_artifact_name(job):
+    """Return the sole output artifact name for a k8s job, if it has exactly one."""
+    if not isinstance(job, dict) or job.get("type") != "k8s":
+        return None
+
+    job_spec = job.get("jobSpec")
+    if not isinstance(job_spec, dict):
+        return None
+
+    outputs = job_spec.get("outputs")
+    if not isinstance(outputs, dict):
+        return None
+
+    artifacts = outputs.get("artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) != 1:
+        return None
+
+    artifact = artifacts[0]
+    if not isinstance(artifact, dict):
+        return None
+
+    name = artifact.get("name")
+    return name if isinstance(name, str) and name else None
+
+
+def resolve_output_name(source_job, explicit_output_name, jobs_by_name=None, prefer_artifact=False):
+    """Resolve the referenced output name for a source job."""
+    if explicit_output_name is not None:
+        return explicit_output_name
+
+    if prefer_artifact and jobs_by_name:
+        artifact_name = get_single_output_artifact_name(jobs_by_name.get(source_job))
+        if artifact_name:
+            return artifact_name
+
+    return "result"
+
+
+def process_job_inputs(job, job_type=None, job_types=None, jobs_by_name=None):
     """
     Process the 'inputs' field of a job and return a dict with keys 'parameters' and 'artifacts'
     to be merged into the DAG task's arguments.
@@ -179,16 +228,27 @@ def process_job_inputs(job, job_type=None, job_types=None):
       - If only "from" is provided and the source job is slurm, add:
             parameters: {"slurmInput": "true"}
             artifacts:  {"input-artifact": "{{tasks.<source>.outputs.artifacts.output-artifact}}"}
+      - If only "from" is provided and the source job is k8s, then:
+            * when the slurm job defines no **s3key** anywhere in its inputs, add:
+                  parameters: {"slurmInput": "false"}
+                  artifacts:  {"input-artifact": "{{tasks.<source>.outputs.artifacts.<output_name>}}"}
+              where output_name defaults to the sole source artifact when exactly one exists,
+              otherwise "result"
+            * when the slurm job defines any **s3key**, keep the existing behavior and
+              do not wire a direct artifact argument for the k8s source
       - "path" is only valid when used together with "s3key".
 
     For non-slurm target jobs, if "from" is provided:
       - If the referenced source job is slurm, generate an artifact argument referencing "output-artifact".
       - Else, use artifact/parameter according to input type (default: parameter).
+        Artifact consumers auto-pick the sole source artifact name when exactly one exists;
+        otherwise they fall back to "result".
     """
     args = {}
     params = []
     artifacts = []
 
+    job_has_s3key = any(isinstance(inp, dict) and "s3key" in inp for inp in job.get("inputs", []))
     s3key_used = False
 
     for inp in job.get("inputs", []):
@@ -257,7 +317,7 @@ def process_job_inputs(job, job_type=None, job_types=None):
                 source_job, output_name = source.split(".", 1)
             else:
                 source_job = source
-                output_name = "result"
+                output_name = None
 
             if job_type != "slurm":
                 # Non-slurm consumer of another job
@@ -268,17 +328,24 @@ def process_job_inputs(job, job_type=None, job_types=None):
                     })
                 else:
                     if inp.get("type", "parameter") == "artifact":
+                        artifact_output_name = resolve_output_name(
+                            source_job,
+                            output_name,
+                            jobs_by_name=jobs_by_name,
+                            prefer_artifact=True,
+                        )
                         artifacts.append({
                             "name": inp["name"],
-                            "from": f"{{{{tasks.{source_job}.outputs.artifacts.{output_name}}}}}"
+                            "from": f"{{{{tasks.{source_job}.outputs.artifacts.{artifact_output_name}}}}}"
                         })
                     else:
+                        parameter_output_name = resolve_output_name(source_job, output_name)
                         params.append({
                             "name": inp["name"],
-                            "value": f"{{{{tasks.{source_job}.outputs.parameters.{output_name}}}}}"
+                            "value": f"{{{{tasks.{source_job}.outputs.parameters.{parameter_output_name}}}}}"
                         })
             else:
-                # Slurm target job consuming from another slurm job
+                # Slurm target job consuming from another job
                 if job_types and source_job in job_types and job_types[source_job] == "slurm":
                     params.append({"name": "slurmInput", "value": "true"})
                     artifacts.append({
@@ -286,8 +353,22 @@ def process_job_inputs(job, job_type=None, job_types=None):
                         "from": f"{{{{tasks.{source_job}.outputs.artifacts.output-artifact}}}}"
                     })
                 else:
-                    # Non-slurm source to slurm target -> no direct mapping
-                    continue
+                    # If this slurm job uses s3key anywhere, preserve the current
+                    # behavior and keep only the dependency. Otherwise, consume the
+                    # source k8s artifact directly.
+                    if job_has_s3key:
+                        continue
+                    artifact_output_name = resolve_output_name(
+                        source_job,
+                        output_name,
+                        jobs_by_name=jobs_by_name,
+                        prefer_artifact=True,
+                    )
+                    params.append({"name": "slurmInput", "value": "false"})
+                    artifacts.append({
+                        "name": "input-artifact",
+                        "from": f"{{{{tasks.{source_job}.outputs.artifacts.{artifact_output_name}}}}}"
+                    })
         else:
             # No 'value'/'s3key' and no 'from' -> invalid input spec
             # For slurm: also allow the case where we added s3key/path above (already continued)
@@ -320,6 +401,7 @@ def merge_arguments(existing, new):
 def build_workflow(jobs):
     # Build a mapping of job name to job type.
     job_types = {job["name"]: job["type"] for job in jobs}
+    jobs_by_name = {job["name"]: job for job in jobs}
     # Precompute job dependency graph from inputs.
     job_deps = {job["name"]: set() for job in jobs}
     for job in jobs:
@@ -366,7 +448,12 @@ def build_workflow(jobs):
             task["dependencies"] = dep_jobs
 
         # Build arguments from inputs
-        input_args = process_job_inputs(job, job_type=job["type"], job_types=job_types)
+        input_args = process_job_inputs(
+            job,
+            job_type=job["type"],
+            job_types=job_types,
+            jobs_by_name=jobs_by_name,
+        )
 
         task_args = {}
         if job["type"] == "slurm":
