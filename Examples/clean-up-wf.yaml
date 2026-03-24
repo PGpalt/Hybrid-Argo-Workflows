@@ -1,9 +1,12 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
+  annotations:
+    scheduler/global-parallelism: '5'
   generateName: hybrid-workflow-
 spec:
   entrypoint: hybrid-workflow
+  parallelism: 5
   templates:
   - dag:
       tasks:
@@ -28,7 +31,7 @@ spec:
             name: input-artifact
           parameters:
           - name: command
-            value: export DATAPATH='E-Coli' && sbatch QC-Alignment.slurm
+            value: export DATAPATH='E-Coli' && sbatch QC-Alignment-local.slurm
           - name: fetchData
             value: true
           - name: outputFileName
@@ -50,7 +53,7 @@ spec:
             name: input-artifact
           parameters:
           - name: command
-            value: export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment.slurm
+            value: export DATAPATH='Salmonella-Enterica' && sbatch QC-Alignment-local.slurm
           - name: fetchData
             value: true
           - name: outputFileName
@@ -60,6 +63,7 @@ spec:
           - name: slurmInput
             value: 'true'
         dependencies:
+        - ARIS-Input-Stage
         - Alignment1
         name: Alignment2
         templateRef:
@@ -72,7 +76,7 @@ spec:
             name: input-artifact
           parameters:
           - name: command
-            value: export DATAPATH='Shigella' && sbatch QC-Alignment.slurm
+            value: export DATAPATH='Shigella' && sbatch QC-Alignment-local.slurm
           - name: fetchData
             value: true
           - name: outputFileName
@@ -84,6 +88,7 @@ spec:
           - name: cleanData
             value: 'true'
         dependencies:
+        - Alignment1
         - Alignment2
         name: Alignment3
         templateRef:
