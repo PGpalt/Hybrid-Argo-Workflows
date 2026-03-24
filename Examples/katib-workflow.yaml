@@ -13,7 +13,7 @@ spec:
           parameters:
           - name: command
             value: export LR=${trialParameters.learningRate} && export epochs={{tasks.gen-epochs.outputs.result}}
-              && sbatch katib-train.slurm
+              && sbatch katib-train-local.slurm
           - name: outputFileName
             value: mnist.log
           - name: fetchData
@@ -48,7 +48,8 @@ spec:
         '
   - container:
       args:
-      - sleep 10;cp /tmp/logs/mnist.log /katib/mnist.log;cat /katib/mnist.log
+      - mkdir -p /katib;cp /tmp/logs/mnist.log /katib/mnist.log;sleep 10;cat /katib/mnist.log;sleep
+        20
       command:
       - sh
       - -c
